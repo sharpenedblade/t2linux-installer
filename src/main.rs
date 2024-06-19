@@ -1,5 +1,6 @@
 use crate::ui::app::App;
 use iced::{Sandbox, Settings};
+use serde::{Deserialize, Serialize};
 use std::fs;
 
 mod ui {
@@ -7,28 +8,26 @@ mod ui {
     pub mod main_page;
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
 struct Distro {
     name: String,
     iso: String,
 }
 
+#[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
+struct DistroMetadataWrapper {
+    all: Vec<Distro>,
+}
+
 impl Distro {
     fn get_all() -> Vec<Distro> {
-        vec![
-            Distro {
-                name: "Arch Linux".to_string(),
-                iso: "https://example.com".to_string(),
-            },
-            Distro {
-                name: "Fedora".to_string(),
-                iso: "https://example.com".to_string(),
-            },
-            Distro {
-                name: "Ubuntu".to_string(),
-                iso: "https://example.com".to_string(),
-            },
-        ]
+        let iso_metadata_file = fs::OpenOptions::new()
+            .read(true)
+            .open("distro-metadata.json")
+            .unwrap();
+        let iso_metadata: DistroMetadataWrapper =
+            serde_json::from_reader(iso_metadata_file).unwrap();
+        iso_metadata.all
     }
 }
 
