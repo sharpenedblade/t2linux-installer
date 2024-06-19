@@ -6,11 +6,35 @@ mod ui {
     pub mod main_page;
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Copy)]
-enum Distro {
-    Arch,
-    Fedora,
-    Ubuntu,
+#[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord)]
+struct Distro {
+    name: String,
+}
+
+impl Distro {
+    fn get_all() -> Vec<Distro> {
+        vec![
+            Distro {
+                name: "Arch Linux".to_string(),
+            },
+            Distro {
+                name: "Fedora".to_string(),
+            },
+            Distro {
+                name: "Ubuntu".to_string(),
+            },
+        ]
+    }
+}
+
+struct InstallSettings {
+    distro: Distro,
+}
+
+impl InstallSettings {
+    fn install(&self) {
+        todo!();
+    }
 }
 
 fn main() -> iced::Result {
