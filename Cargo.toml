@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 iced = "0.12.1"
+reqwest = { version = "0.12.5", features = ["default", "blocking"] }
