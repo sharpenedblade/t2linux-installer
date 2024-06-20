@@ -1,9 +1,10 @@
-use crate::ui::main_page;
+use crate::ui::{install_page, main_page};
 use iced::Sandbox;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum AppMessage {
     MainPage(main_page::MainPageMessage),
+    InstallPage(install_page::InstallPageMessage),
 }
 
 pub struct App {

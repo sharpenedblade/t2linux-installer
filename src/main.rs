@@ -5,6 +5,7 @@ use std::fs;
 
 mod ui {
     pub mod app;
+    pub mod install_page;
     pub mod main_page;
 }
 

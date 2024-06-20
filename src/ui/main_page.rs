@@ -1,4 +1,7 @@
-use crate::ui::app::{AppMessage, Page};
+use crate::ui::{
+    app::{AppMessage, Page},
+    install_page,
+};
 use crate::{Distro, InstallSettings};
 use iced::widget::{button, checkbox, column, radio, text};
 
@@ -37,7 +40,7 @@ impl Page for MainPage {
                     let install_settings = InstallSettings {
                         distro: Distro::get_all()[self.distro_index.unwrap()].clone(),
                     };
-                    install_settings.install();
+                    return Some(Box::new(install_page::InstallPage::new(install_settings)));
                 }
             }
         }
