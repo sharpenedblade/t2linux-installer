@@ -11,7 +11,7 @@ mod ui {
 #[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
 struct Distro {
     name: String,
-    iso: String,
+    iso: Vec<String>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -40,16 +40,20 @@ impl InstallSettings {
         let iso_file = self.download_iso();
     }
     fn download_iso(&self) -> fs::File {
-        let mut request: reqwest::blocking::Response =
-            reqwest::blocking::get(&self.distro.iso).unwrap();
+        let client = reqwest::blocking::Client::new();
         let mut iso_file = fs::OpenOptions::new()
-            .read(true)
-            .write(true)
+            .append(true)
             .create(true)
             .open("download.iso")
             .unwrap();
-        request.copy_to(&mut iso_file).unwrap();
-        iso_file
+        for url in &self.distro.iso {
+            let mut request: reqwest::blocking::Response = client.get(url).send().unwrap();
+            request.copy_to(&mut iso_file).unwrap();
+        }
+        fs::OpenOptions::new()
+            .read(true)
+            .open("download.iso")
+            .unwrap()
     }
 }
 

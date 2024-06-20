@@ -2,15 +2,15 @@
   "all": [
     {
       "name": "Arch Linux",
-      "iso": "https://example.com"
+      "iso": ["https://example.com"]
     },
     {
       "name": "Fedora",
-      "iso": "https://example.com"
+      "iso": ["https://example.com"]
     },
     {
       "name": "Ubuntu",
-      "iso": "https://example.com"
+      "iso": ["https://example.com"]
     }
   ]
 }
