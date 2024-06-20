@@ -2,15 +2,15 @@
   "all": [
     {
       "name": "Arch Linux",
-      "iso": ["https://example.com"]
+      "iso": ["https://github.com/t2linux/archiso-t2/releases/download/2024.04.09/archlinux-t2-2024.04.09-t2-x86_64.iso"]
     },
     {
       "name": "Fedora",
-      "iso": ["https://example.com"]
+      "iso": ["https://github.com/t2linux/fedora-iso/releases/download/f40.0/t2linux-fedora-live-workstation-40.iso"]
     },
     {
-      "name": "Ubuntu",
-      "iso": ["https://example.com"]
+      "name": "EndeavourOS",
+      "iso": ["https://nightly.link/t2linux/EndeavourOS-ISO-t2/actions/runs/8866649470/built-iso.zip"]
     }
   ]
 }
