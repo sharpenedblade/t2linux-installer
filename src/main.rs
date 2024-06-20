@@ -1,5 +1,5 @@
 use crate::ui::app::App;
-use iced::{Sandbox, Settings};
+use iced::{Application, Settings};
 use serde::{Deserialize, Serialize};
 use std::fs;
 

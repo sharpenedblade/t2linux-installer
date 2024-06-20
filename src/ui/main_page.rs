@@ -30,8 +30,8 @@ impl MainPage {
 }
 
 impl Page for MainPage {
-    fn update(&mut self, _message: AppMessage) -> Option<Box<dyn Page>> {
-        if let AppMessage::MainPage(msg) = _message {
+    fn update(&mut self, message: AppMessage) -> Option<Box<dyn Page>> {
+        if let AppMessage::MainPage(msg) = message {
             match msg {
                 MainPageMessage::PickDistro(distro_index) => self.distro_index = Some(distro_index),
                 MainPageMessage::ToggleAutoPartitioning(b) => self.auto_partitioning = b,

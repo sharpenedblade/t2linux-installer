@@ -16,8 +16,8 @@ impl InstallPage {
 }
 
 impl Page for InstallPage {
-    fn update(&mut self, _message: AppMessage) -> Option<Box<dyn Page>> {
-        if let AppMessage::InstallPage(msg) = _message {}
+    fn update(&mut self, message: AppMessage) -> Option<Box<dyn Page>> {
+        if let AppMessage::InstallPage(msg) = message {}
         None
     }
     fn view(&self) -> iced::Element<AppMessage> {
