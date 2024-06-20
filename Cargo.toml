@@ -10,3 +10,4 @@ iced = "0.12.1"
 reqwest = { version = "0.12.5", features = ["default", "blocking"] }
 serde = { version = "1.0.203", features = ["serde_derive"] }
 serde_json = "1.0.117"
+zip = "2.1.3"
