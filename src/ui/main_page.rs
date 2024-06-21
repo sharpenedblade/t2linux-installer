@@ -30,7 +30,11 @@ impl MainPage {
 }
 
 impl Page for MainPage {
-    fn update(&mut self, message: AppMessage) -> Option<Box<dyn Page>> {
+    fn update(
+        &mut self,
+        message: AppMessage,
+    ) -> (Option<Box<dyn Page>>, iced::Command<AppMessage>) {
+        let mut page: Option<Box<dyn Page>> = None;
         if let AppMessage::MainPage(msg) = message {
             match msg {
                 MainPageMessage::PickDistro(distro_index) => self.distro_index = Some(distro_index),
@@ -40,11 +44,11 @@ impl Page for MainPage {
                     let install_settings = InstallSettings {
                         distro: Distro::get_all()[self.distro_index.unwrap()].clone(),
                     };
-                    return Some(Box::new(install_page::InstallPage::new(install_settings)));
+                    page = Some(Box::new(install_page::InstallPage::new(install_settings)))
                 }
             }
         }
-        None
+        (page, iced::Command::none())
     }
     fn view(&self) -> iced::Element<AppMessage> {
         let mut disk_list = column![text("Choose instalation disk").size(24)].spacing(4);

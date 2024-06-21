@@ -12,7 +12,8 @@ pub struct App {
 }
 
 pub trait Page {
-    fn update(&mut self, message: AppMessage) -> Option<Box<dyn Page>>;
+    fn update(&mut self, message: AppMessage)
+        -> (Option<Box<dyn Page>>, iced::Command<AppMessage>);
     fn view(&self) -> iced::Element<AppMessage>;
 }
 
@@ -36,10 +37,11 @@ impl Application for App {
     }
 
     fn update(&mut self, message: Self::Message) -> iced::Command<Self::Message> {
-        if let Some(p) = self.page.update(message) {
+        let (page, command) = self.page.update(message);
+        if let Some(p) = page {
             self.page = p;
         }
-        Command::none()
+        command
     }
 
     fn view(&self) -> iced::Element<Self::Message> {

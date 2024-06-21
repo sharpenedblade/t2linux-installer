@@ -16,9 +16,12 @@ impl InstallPage {
 }
 
 impl Page for InstallPage {
-    fn update(&mut self, message: AppMessage) -> Option<Box<dyn Page>> {
-        if let AppMessage::InstallPage(msg) = message {}
-        None
+    fn update(
+        &mut self,
+        message: AppMessage,
+    ) -> (Option<Box<(dyn Page)>>, iced::Command<AppMessage>) {
+        if let AppMessage::InstallPage(_msg) = message {}
+        (None, iced::Command::none())
     }
     fn view(&self) -> iced::Element<AppMessage> {
         column![text("Installing")].into()
