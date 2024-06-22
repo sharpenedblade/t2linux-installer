@@ -11,6 +11,7 @@ mod ui {
     pub mod install_page;
     pub mod main_page;
 }
+mod diskutil;
 mod error;
 
 #[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
