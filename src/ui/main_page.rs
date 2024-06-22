@@ -1,3 +1,4 @@
+use crate::diskutil;
 use crate::ui::{
     app::{AppMessage, Page},
     install_page,
@@ -56,13 +57,20 @@ impl Page for MainPage {
     }
     fn view(&self) -> iced::Element<AppMessage> {
         let mut disk_list = column![text("Choose instalation disk").size(24)].spacing(4);
-        for disk in ["disk0", "disk2"] {
-            disk_list = disk_list.push(radio(
-                disk,
-                &disk.to_string(),
-                self.target_disk.as_ref(),
-                |s| AppMessage::MainPage(MainPageMessage::PickDisk(s.into())),
+        let disks = diskutil::get_external_disks();
+        if disks.is_empty() {
+            disk_list = disk_list.push(text(
+                "No external disks found. Please connect a disk and try again",
             ));
+        } else {
+            for disk in &disks {
+                disk_list = disk_list.push(radio(
+                    disk,
+                    &disk.to_string(),
+                    self.target_disk.as_ref(),
+                    |s| AppMessage::MainPage(MainPageMessage::PickDisk(s.into())),
+                ));
+            }
         }
         let mut distro_list = column![text("Choose a distro").size(24),].spacing(8);
         let distros = Distro::get_all().unwrap();
