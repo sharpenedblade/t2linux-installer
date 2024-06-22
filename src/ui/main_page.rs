@@ -42,7 +42,11 @@ impl Page for MainPage {
                 MainPageMessage::PickDisk(s) => self.target_disk = Some(s),
                 MainPageMessage::StartInstall => {
                     let install_settings = InstallSettings {
-                        distro: Distro::get_all()[self.distro_index.unwrap()].clone(),
+                        distro: Distro::get_all()
+                            .unwrap()
+                            .get(self.distro_index.unwrap())
+                            .unwrap()
+                            .clone(),
                     };
                     page = Some(Box::new(install_page::InstallPage::new(install_settings)))
                 }
@@ -61,7 +65,7 @@ impl Page for MainPage {
             ));
         }
         let mut distro_list = column![text("Choose a distro").size(24),].spacing(8);
-        let distros = Distro::get_all();
+        let distros = Distro::get_all().unwrap();
         for (i, distro) in distros.iter().enumerate() {
             distro_list =
                 distro_list.push(radio(distro.name.clone(), i, self.distro_index, |_| {

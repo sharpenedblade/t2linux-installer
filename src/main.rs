@@ -1,4 +1,5 @@
 use crate::ui::app::App;
+use anyhow::Result;
 use futures::StreamExt;
 use iced::{Application, Settings};
 use serde::{Deserialize, Serialize};
@@ -10,6 +11,7 @@ mod ui {
     pub mod install_page;
     pub mod main_page;
 }
+mod error;
 
 #[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
 struct Distro {
@@ -29,14 +31,12 @@ struct DistroMetadataWrapper {
 }
 
 impl Distro {
-    fn get_all() -> Vec<Distro> {
+    fn get_all() -> Result<Vec<Distro>> {
         let iso_metadata_file = fs::OpenOptions::new()
             .read(true)
-            .open("distro-metadata.json")
-            .unwrap();
-        let iso_metadata: DistroMetadataWrapper =
-            serde_json::from_reader(iso_metadata_file).unwrap();
-        iso_metadata.all
+            .open("distro-metadata.json")?;
+        let iso_metadata: DistroMetadataWrapper = serde_json::from_reader(iso_metadata_file)?;
+        Ok(iso_metadata.all)
     }
 }
 
@@ -46,36 +46,33 @@ struct InstallSettings {
 }
 
 impl InstallSettings {
-    async fn install(&self) {
-        let iso_file = self.download_iso().await;
+    async fn install(&self) -> Result<()> {
+        let iso_file = self.download_iso().await?;
+        Ok(())
     }
-    async fn download_iso(&self) -> fs::File {
+    async fn download_iso(&self) -> Result<fs::File> {
         let client = reqwest::Client::new();
-        fs::remove_file("download.iso").unwrap_or(());
+        fs::remove_file("download.iso")?;
         let mut iso_file = fs::OpenOptions::new()
             .append(true)
             .create(true)
-            .open("download.iso")
-            .unwrap();
+            .open("download.iso")?;
         for url in &self.distro.iso {
-            let mut request = client.get(url).send().await.unwrap().bytes_stream();
+            let mut request = client.get(url).send().await?.bytes_stream();
             while let Some(Ok(data)) = request.next().await {
-                iso_file.write_all(&data).unwrap();
+                iso_file.write_all(&data)?;
             }
         }
         if let Some(compression_algo) = &self.distro.iso_compression {
             match compression_algo {
                 CompressionAlgorithim::Zip => {
-                    let mut archive = zip::ZipArchive::new(iso_file.try_clone().unwrap()).unwrap();
-                    let mut decompressed_file = archive.by_index(0).unwrap();
-                    std::io::copy(&mut decompressed_file, &mut iso_file).unwrap();
+                    let mut archive = zip::ZipArchive::new(iso_file.try_clone().unwrap())?;
+                    let mut decompressed_file = archive.by_index(0)?;
+                    std::io::copy(&mut decompressed_file, &mut iso_file)?;
                 }
             }
         }
-        fs::OpenOptions::new()
-            .read(true)
-            .open("download.iso")
-            .unwrap()
+        Ok(fs::OpenOptions::new().read(true).open("download.iso")?)
     }
 }
 
