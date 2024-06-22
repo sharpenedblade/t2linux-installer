@@ -1,7 +1,9 @@
 use crate::ui::app::App;
+use futures::StreamExt;
 use iced::{Application, Settings};
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::Write;
 
 mod ui {
     pub mod app;
@@ -38,25 +40,28 @@ impl Distro {
     }
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
 struct InstallSettings {
     distro: Distro,
 }
 
 impl InstallSettings {
-    fn install(&self) {
-        let iso_file = self.download_iso();
+    async fn install(&self) {
+        let iso_file = self.download_iso().await;
     }
-    fn download_iso(&self) -> fs::File {
-        let client = reqwest::blocking::Client::new();
-        fs::remove_file("download.iso").unwrap();
+    async fn download_iso(&self) -> fs::File {
+        let client = reqwest::Client::new();
+        fs::remove_file("download.iso").unwrap_or(());
         let mut iso_file = fs::OpenOptions::new()
             .append(true)
             .create(true)
             .open("download.iso")
             .unwrap();
         for url in &self.distro.iso {
-            let mut request: reqwest::blocking::Response = client.get(url).send().unwrap();
-            request.copy_to(&mut iso_file).unwrap();
+            let mut request = client.get(url).send().await.unwrap().bytes_stream();
+            while let Some(Ok(data)) = request.next().await {
+                iso_file.write_all(&data).unwrap();
+            }
         }
         if let Some(compression_algo) = &self.distro.iso_compression {
             match compression_algo {
