@@ -2,6 +2,8 @@ use anyhow::Result;
 use serde::Deserialize;
 use uuid::Uuid;
 
+pub const GIGABYTE: u64 = 1_000_000_000_u64;
+
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
 struct DiskList {

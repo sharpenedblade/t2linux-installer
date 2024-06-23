@@ -1,10 +1,10 @@
-use crate::diskutil;
+use crate::diskutil::{self, GIGABYTE};
 use crate::ui::{
     app::{AppMessage, Page},
     install_page,
 };
 use crate::{Distro, InstallSettings};
-use iced::widget::{button, checkbox, column, radio, text};
+use iced::widget::{button, checkbox, column, radio, slider, text};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MainPageMessage {
@@ -12,11 +12,13 @@ pub enum MainPageMessage {
     ToggleAutoPartitioning(bool),
     PickDisk(String),
     StartInstall,
+    ChangeMacosSize(u64),
 }
 
 pub struct MainPage {
     distro_index: Option<usize>,
-    auto_partitioning: bool,
+    shrink_macos: bool,
+    macos_size: u64,
     target_disk: Option<String>,
 }
 
@@ -24,8 +26,9 @@ impl MainPage {
     pub fn new() -> Self {
         Self {
             distro_index: None,
-            auto_partitioning: true,
+            shrink_macos: true,
             target_disk: None,
+            macos_size: 0,
         }
     }
 }
@@ -39,7 +42,7 @@ impl Page for MainPage {
         if let AppMessage::MainPage(msg) = message {
             match msg {
                 MainPageMessage::PickDistro(distro_index) => self.distro_index = Some(distro_index),
-                MainPageMessage::ToggleAutoPartitioning(b) => self.auto_partitioning = b,
+                MainPageMessage::ToggleAutoPartitioning(b) => self.shrink_macos = b,
                 MainPageMessage::PickDisk(s) => self.target_disk = Some(s),
                 MainPageMessage::StartInstall => {
                     let install_settings = InstallSettings {
@@ -50,6 +53,9 @@ impl Page for MainPage {
                             .clone(),
                     };
                     page = Some(Box::new(install_page::InstallPage::new(install_settings)))
+                }
+                MainPageMessage::ChangeMacosSize(i) => {
+                    self.macos_size = i;
                 }
             }
         }
@@ -80,11 +86,41 @@ impl Page for MainPage {
                     AppMessage::MainPage(MainPageMessage::PickDistro(i))
                 }));
         }
+        let (min_size, max_size) = diskutil::get_resize_limits("disk0s2");
+
+        let mut macos_shrink = column![checkbox("Shrink MacOS", self.shrink_macos)
+            .on_toggle(|b| AppMessage::MainPage(MainPageMessage::ToggleAutoPartitioning(b))),]
+        .spacing(16);
+        if self.shrink_macos {
+            if min_size < max_size && max_size - min_size > GIGABYTE {
+                macos_shrink = macos_shrink.push(
+                    column![
+                        text(format!(
+                            "MacOS partition size: {:.2} GB",
+                            (self.macos_size as f64 / GIGABYTE as f64)
+                        )),
+                        slider(
+                            min_size as f64..=max_size as f64,
+                            self.macos_size as f64,
+                            |f| {
+                                AppMessage::MainPage(MainPageMessage::ChangeMacosSize(f as u64))
+                            },
+                        )
+                        .step(GIGABYTE as f64)
+                        .width(iced::Length::Fixed(400.0)),
+                    ]
+                    .spacing(4),
+                );
+            } else {
+                macos_shrink = macos_shrink.push(text(
+                    "MacOS partition is full, please create some free space",
+                ))
+            }
+        }
         column![
             distro_list,
             disk_list,
-            checkbox("Automatic partitioning", self.auto_partitioning)
-                .on_toggle(|b| AppMessage::MainPage(MainPageMessage::ToggleAutoPartitioning(b))),
+            macos_shrink,
             button("Begin installation")
                 .on_press(AppMessage::MainPage(MainPageMessage::StartInstall))
         ]
