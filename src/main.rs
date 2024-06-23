@@ -53,7 +53,7 @@ impl InstallSettings {
     }
     async fn download_iso(&self) -> Result<fs::File> {
         let client = reqwest::Client::new();
-        fs::remove_file("download.iso")?;
+        fs::remove_file("download.iso").ok();
         let mut iso_file = fs::OpenOptions::new()
             .append(true)
             .create(true)
