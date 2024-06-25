@@ -15,6 +15,7 @@ pub trait Page {
     fn update(&mut self, message: AppMessage)
         -> (Option<Box<dyn Page>>, iced::Command<AppMessage>);
     fn view(&self) -> iced::Element<AppMessage>;
+    fn subscription(&self) -> iced::Subscription<AppMessage>;
 }
 
 impl Application for App {
@@ -46,5 +47,9 @@ impl Application for App {
 
     fn view(&self) -> iced::Element<Self::Message> {
         self.page.view()
+    }
+
+    fn subscription(&self) -> iced::Subscription<Self::Message> {
+        self.page.subscription()
     }
 }

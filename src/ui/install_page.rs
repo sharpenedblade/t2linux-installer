@@ -1,6 +1,7 @@
+use crate::install::{InstallProgress, InstallSettings};
 use crate::ui::app::{AppMessage, Page};
-use crate::InstallSettings;
-use iced::widget::{button, column, container, row, text};
+use futures::StreamExt;
+use iced::widget::{button, column, container, text};
 use iced::Length;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -12,14 +13,16 @@ pub struct InstallPage {
 #[derive(Debug, Clone, Eq, PartialEq)]
 enum InstallState {
     NotStarted,
+    Starting,
     DownloadingIso,
-    Done,
+    Finished,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InstallPageMessage {
     StartInstallation,
-    IsoDownloadEnd,
+    StartedIsoDownload,
+    Finished,
 }
 
 impl InstallPage {
@@ -36,20 +39,14 @@ impl Page for InstallPage {
         &mut self,
         message: AppMessage,
     ) -> (Option<Box<(dyn Page)>>, iced::Command<AppMessage>) {
-        let mut command: iced::Command<AppMessage> = iced::Command::none();
+        let command: iced::Command<AppMessage> = iced::Command::none();
         if let AppMessage::InstallPage(msg) = message {
             match msg {
-                InstallPageMessage::StartInstallation => {
+                InstallPageMessage::StartInstallation => self.state = InstallState::Starting,
+                InstallPageMessage::StartedIsoDownload => {
                     self.state = InstallState::DownloadingIso;
-                    let s: Self = self.clone();
-                    command = iced::Command::perform(
-                        async move {
-                            s.install_settings.install().await.unwrap();
-                        },
-                        |_| AppMessage::InstallPage(InstallPageMessage::IsoDownloadEnd),
-                    )
                 }
-                InstallPageMessage::IsoDownloadEnd => self.state = InstallState::Done,
+                InstallPageMessage::Finished => self.state = InstallState::Finished,
             }
         }
         (None, command)
@@ -64,11 +61,14 @@ impl Page for InstallPage {
                         InstallPageMessage::StartInstallation
                     ))
                 ].spacing(16).width(600)
+            },
+            InstallState::Starting => {
+                column![text("Starting Installer").size(24), text("If this takes more than a few secods, something is broken")].spacing(16)
             }
-            InstallState::DownloadingIso => {
+            InstallState::DownloadingIso  => {
                 column![text("Downloading ISO").size(24), text("Please wait...")].spacing(16)
             }
-            InstallState::Done => {
+            InstallState::Finished => {
                 column![
                     text("Ready for installation!").size(24),
                     text("You can reboot to the linux installer now.")
@@ -80,5 +80,22 @@ impl Page for InstallPage {
         .width(Length::Fill)
         .height(Length::Fill)
         .into()
+    }
+
+    fn subscription(&self) -> iced::Subscription<AppMessage> {
+        let install: iced::Subscription<AppMessage> = iced::subscription::run_with_id(
+            0,
+            self.install_settings.install().map(|msg| match msg {
+                InstallProgress::Started => {
+                    AppMessage::InstallPage(InstallPageMessage::StartedIsoDownload)
+                }
+                InstallProgress::Finished => AppMessage::InstallPage(InstallPageMessage::Finished),
+            }),
+        );
+        let mut subscriptions: Vec<iced::Subscription<AppMessage>> = vec![];
+        if self.state != InstallState::NotStarted && self.state != InstallState::Finished {
+            subscriptions.push(install)
+        }
+        iced::Subscription::batch(subscriptions)
     }
 }

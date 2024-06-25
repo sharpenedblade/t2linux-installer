@@ -3,7 +3,7 @@ use crate::ui::{
     app::{AppMessage, Page},
     install_page,
 };
-use crate::{Distro, InstallSettings};
+use crate::{distro::Distro, install::InstallSettings};
 use iced::widget::{button, checkbox, column, radio, slider, text};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -45,13 +45,13 @@ impl Page for MainPage {
                 MainPageMessage::ToggleAutoPartitioning(b) => self.shrink_macos = b,
                 MainPageMessage::PickDisk(s) => self.target_disk = Some(s),
                 MainPageMessage::StartInstall => {
-                    let install_settings = InstallSettings {
-                        distro: Distro::get_all()
+                    let install_settings = InstallSettings::new(
+                        Distro::get_all()
                             .unwrap()
                             .get(self.distro_index.unwrap())
                             .unwrap()
                             .clone(),
-                    };
+                    );
                     page = Some(Box::new(install_page::InstallPage::new(install_settings)))
                 }
                 MainPageMessage::ChangeMacosSize(i) => {
@@ -127,5 +127,9 @@ impl Page for MainPage {
         .spacing(16)
         .padding(8)
         .into()
+    }
+
+    fn subscription(&self) -> iced::Subscription<AppMessage> {
+        iced::Subscription::none()
     }
 }
