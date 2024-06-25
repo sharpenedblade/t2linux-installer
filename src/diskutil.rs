@@ -4,6 +4,7 @@ use uuid::Uuid;
 
 pub const GIGABYTE: u64 = 1_000_000_000_u64;
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
 struct DiskList {
@@ -13,6 +14,7 @@ struct DiskList {
     whole_disks: Vec<String>,
 }
 
+#[allow(dead_code, non_snake_case)]
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
 struct Disk {
@@ -22,6 +24,7 @@ struct Disk {
     partitions: Vec<Partition>,
 }
 
+#[allow(dead_code, non_snake_case)]
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
 struct Partition {
@@ -33,6 +36,7 @@ struct Partition {
     volume_UUID: Option<Uuid>,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
 struct ApfsResizeLimits {
