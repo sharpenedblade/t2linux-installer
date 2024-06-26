@@ -51,6 +51,7 @@ impl Page for MainPage {
                             .get(self.distro_index.unwrap())
                             .unwrap()
                             .clone(),
+                        self.target_disk.clone().unwrap(),
                     );
                     page = Some(Box::new(install_page::InstallPage::new(install_settings)))
                 }
