@@ -1,3 +1,4 @@
+use crate::error::Error;
 use crate::install::{InstallProgress, InstallSettings};
 use crate::ui::app::{AppMessage, Page};
 use futures::StreamExt;
@@ -15,6 +16,7 @@ enum InstallState {
     NotStarted,
     Starting,
     DownloadingIso,
+    Failed(String),
     Finished,
 }
 
@@ -23,6 +25,7 @@ pub enum InstallPageMessage {
     StartInstallation,
     StartedIsoDownload,
     Finished,
+    Failed(String),
 }
 
 impl InstallPage {
@@ -47,12 +50,13 @@ impl Page for InstallPage {
                     self.state = InstallState::DownloadingIso;
                 }
                 InstallPageMessage::Finished => self.state = InstallState::Finished,
+                InstallPageMessage::Failed(err_msg) => self.state = InstallState::Failed(err_msg),
             }
         }
         (None, command)
     }
     fn view(&self) -> iced::Element<AppMessage> {
-        container(match self.state {
+        container(match &self.state {
             InstallState::NotStarted => {
                 column![
                     text("Start Installation").size(24),
@@ -74,6 +78,12 @@ impl Page for InstallPage {
                     text("You can reboot to the linux installer now.")
                 ].spacing(16)
             }
+            InstallState::Failed(err_msg) => {
+                column![
+                    text("Installation failed").size(24),
+                    text(format!("Error: {err_msg}. Please try again or file a bug report"))
+                ].spacing(16)
+            },
         })
         .align_x(iced::alignment::Horizontal::Center)
         .align_y(iced::alignment::Vertical::Center)
@@ -90,6 +100,9 @@ impl Page for InstallPage {
                     AppMessage::InstallPage(InstallPageMessage::StartedIsoDownload)
                 }
                 InstallProgress::Finished => AppMessage::InstallPage(InstallPageMessage::Finished),
+                InstallProgress::Failed(err) => {
+                    AppMessage::InstallPage(InstallPageMessage::Failed(err.to_string()))
+                }
             }),
         );
         let mut subscriptions: Vec<iced::Subscription<AppMessage>> = vec![];

@@ -1,4 +1,5 @@
 use crate::distro::Distro;
+use crate::error::Error;
 use futures::{Stream, StreamExt};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -8,10 +9,11 @@ enum InstallStep {
     Finished,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug)]
 pub enum InstallProgress {
     Started,
     Finished,
+    Failed(Error),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -44,7 +46,10 @@ impl InstallSettings {
                         Some((InstallProgress::Started, next_state))
                     }
                     InstallStep::DownloadIso => {
-                        state.settings.distro.download_iso().await.unwrap();
+                        let Ok(_iso) = state.settings.distro.download_iso().await else {
+                            next_state.step = InstallStep::Finished;
+                            return Some((InstallProgress::Failed(Error::IsoDownload), next_state));
+                        };
                         next_state.step = InstallStep::Finished;
                         Some((InstallProgress::Finished, next_state))
                     }
