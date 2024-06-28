@@ -19,7 +19,7 @@ pub enum InstallProgress {
     Failed(Error),
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug)]
 struct Installer {
     step: InstallStep,
     settings: InstallSettings,
@@ -45,28 +45,27 @@ impl InstallSettings {
                 step: InstallStep::Start,
                 settings,
             },
-            |state| async move {
-                let mut next_state: Installer = state.clone();
+            |mut state| async move {
                 match state.step {
                     InstallStep::Start => {
-                        next_state.step = InstallStep::DownloadIso;
-                        Some((InstallProgress::Started, next_state))
+                        state.step = InstallStep::DownloadIso;
+                        Some((InstallProgress::Started, state))
                     }
                     InstallStep::DownloadIso => {
                         let Ok(_iso) = state.settings.distro.download_iso().await else {
-                            next_state.step = InstallStep::Finished;
-                            return Some((InstallProgress::Failed(Error::IsoDownload), next_state));
+                            state.step = InstallStep::Finished;
+                            return Some((InstallProgress::Failed(Error::IsoDownload), state));
                         };
-                        next_state.step = InstallStep::FlashIso;
-                        Some((InstallProgress::DownloadedIso, next_state))
+                        state.step = InstallStep::FlashIso;
+                        Some((InstallProgress::DownloadedIso, state))
                     }
                     InstallStep::FlashIso => {
                         let Ok(_) = state.settings.flash_iso().await else {
-                            next_state.step = InstallStep::Finished;
-                            return Some((InstallProgress::Failed(Error::IsoFlash), next_state));
+                            state.step = InstallStep::Finished;
+                            return Some((InstallProgress::Failed(Error::IsoFlash), state));
                         };
-                        next_state.step = InstallStep::Finished;
-                        Some((InstallProgress::Finished, next_state))
+                        state.step = InstallStep::Finished;
+                        Some((InstallProgress::Finished, state))
                     }
                     InstallStep::Finished => None,
                 }
