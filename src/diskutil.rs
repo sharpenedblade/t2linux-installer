@@ -86,3 +86,9 @@ pub fn resize_apfs_volume(disk: &str, new_size: u64) -> Result<()> {
     ]);
     Ok(())
 }
+
+pub fn get_internal_macos_partition() -> Option<String> {
+    let diskutil_output = diskutil_cmd(vec!["list", "-plist", "internal", "virtual"]);
+    let all_disks: DiskList = plist::from_bytes(diskutil_output.as_ref()).unwrap();
+    all_disks.whole_disks.first().cloned()
+}

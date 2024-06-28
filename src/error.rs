@@ -8,4 +8,6 @@ pub enum Error {
     IsoDownload,
     #[error("failed to flash ISO to disk")]
     IsoFlash,
+    #[error("failed to shrink MacOS partition")]
+    MacosResize,
 }

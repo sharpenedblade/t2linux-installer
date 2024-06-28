@@ -17,6 +17,7 @@ enum InstallState {
     Starting,
     DownloadingIso,
     FlashingIso,
+    ResizingMacos,
     Failed(String),
     Finished,
 }
@@ -26,6 +27,7 @@ pub enum InstallPageMessage {
     StartInstallation,
     StartedIsoDownload,
     StartedIsoFlash,
+    StartedMacosResize,
     Finished,
     Failed(String),
 }
@@ -54,6 +56,9 @@ impl Page for InstallPage {
                 InstallPageMessage::StartedIsoFlash => {
                     self.state = InstallState::FlashingIso;
                 }
+                InstallPageMessage::StartedMacosResize => {
+                    self.state = InstallState::ResizingMacos;
+                }
                 InstallPageMessage::Finished => self.state = InstallState::Finished,
                 InstallPageMessage::Failed(err_msg) => self.state = InstallState::Failed(err_msg),
             }
@@ -79,6 +84,9 @@ impl Page for InstallPage {
             }
             InstallState::FlashingIso => {
                 column![text("Flashing ISO").size(24), text("Please wait...")].spacing(16)
+            },
+            InstallState::ResizingMacos => {
+                column![text("Resizing MacOS partition").size(24), text("Please wait...")].spacing(16)
             },
             InstallState::Finished => {
                 column![
@@ -109,6 +117,9 @@ impl Page for InstallPage {
                 }
                 InstallProgress::DownloadedIso => {
                     AppMessage::InstallPage(InstallPageMessage::StartedIsoFlash)
+                }
+                InstallProgress::ResizingMacos => {
+                    AppMessage::InstallPage(InstallPageMessage::StartedMacosResize)
                 }
                 InstallProgress::Finished => AppMessage::InstallPage(InstallPageMessage::Finished),
                 InstallProgress::Failed(err) => {

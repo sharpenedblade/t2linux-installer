@@ -52,6 +52,11 @@ impl Page for MainPage {
                             .unwrap()
                             .clone(),
                         self.target_disk.clone().unwrap(),
+                        if self.shrink_macos {
+                            Some(self.macos_size)
+                        } else {
+                            None
+                        },
                     );
                     page = Some(Box::new(install_page::InstallPage::new(install_settings)))
                 }

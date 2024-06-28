@@ -1,3 +1,4 @@
+use crate::diskutil;
 use crate::distro::Distro;
 use crate::error::Error;
 use anyhow::Result;
@@ -10,6 +11,7 @@ enum InstallStep {
     Start,
     DownloadIso,
     FlashIso,
+    ResizeMacos,
     Finished,
 }
 
@@ -17,6 +19,7 @@ enum InstallStep {
 pub enum InstallProgress {
     Started,
     DownloadedIso,
+    ResizingMacos,
     Finished,
     Failed(Error),
 }
@@ -32,11 +35,16 @@ struct Installer {
 pub struct InstallSettings {
     distro: Distro,
     flash_disk: String,
+    macos_size: Option<u64>,
 }
 
 impl InstallSettings {
-    pub fn new(distro: Distro, flash_disk: String) -> Self {
-        Self { distro, flash_disk }
+    pub fn new(distro: Distro, flash_disk: String, macos_size: Option<u64>) -> Self {
+        Self {
+            distro,
+            flash_disk,
+            macos_size,
+        }
     }
     async fn flash_iso(&self, iso_file: &mut fs::File) -> Result<()> {
         let mut target_disk = fs::OpenOptions::new()
@@ -78,6 +86,25 @@ impl InstallSettings {
                         else {
                             state.step = InstallStep::Finished;
                             return Some((InstallProgress::Failed(Error::IsoFlash), state));
+                        };
+                        state.step = InstallStep::ResizeMacos;
+                        Some((InstallProgress::ResizingMacos, state))
+                    }
+                    InstallStep::ResizeMacos => {
+                        if let Some(size) = &state.settings.macos_size.clone() {
+                            if let Some(disk) = diskutil::get_internal_macos_partition() {
+                                let Ok(_) = diskutil::resize_apfs_volume(&disk, size.to_owned())
+                                else {
+                                    state.step = InstallStep::Finished;
+                                    return Some((
+                                        InstallProgress::Failed(Error::MacosResize),
+                                        state,
+                                    ));
+                                };
+                            } else {
+                                state.step = InstallStep::Finished;
+                                return Some((InstallProgress::Failed(Error::MacosResize), state));
+                            };
                         };
                         state.step = InstallStep::Finished;
                         Some((InstallProgress::Finished, state))
