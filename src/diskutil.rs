@@ -30,7 +30,7 @@ struct Disk {
 struct Partition {
     content: String,
     device_identifier: String,
-    disk_UUID: Uuid,
+    disk_UUID: Option<Uuid>,
     size: u64,
     volume_name: Option<String>,
     volume_UUID: Option<Uuid>,
