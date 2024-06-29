@@ -11,6 +11,7 @@ pub struct Distro {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 enum CompressionAlgorithim {
     Zip,
 }
