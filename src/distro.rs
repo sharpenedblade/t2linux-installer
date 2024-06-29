@@ -23,10 +23,9 @@ struct DistroMetadataWrapper {
 
 impl Distro {
     pub fn get_all() -> Result<Vec<Distro>> {
-        let iso_metadata_file = fs::OpenOptions::new()
-            .read(true)
-            .open("distro-metadata.json")?;
-        let iso_metadata: DistroMetadataWrapper = serde_json::from_reader(iso_metadata_file)?;
+        let iso_metadata =
+            reqwest::blocking::get("https://wiki.t2linux.org/tools/distro-metadata.json")?;
+        let iso_metadata: DistroMetadataWrapper = serde_json::from_reader(iso_metadata)?;
         Ok(iso_metadata.all)
     }
 

@@ -10,7 +10,7 @@ anyhow = "1.0.86"
 futures = "0.3.30"
 iced = { version = "0.12.1", features = ["tokio"] }
 plist = "1.6.1"
-reqwest = { version = "0.12.5", features = ["stream"] }
+reqwest = { version = "0.12.5", features = ["stream", "blocking"] }
 serde = { version = "1.0.203", features = ["serde_derive"] }
 serde_json = "1.0.117"
 thiserror = "1.0.61"
