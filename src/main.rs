@@ -10,6 +10,7 @@ mod diskutil;
 mod distro;
 mod error;
 mod install;
+mod macos;
 
 fn main() -> iced::Result {
     App::run(Settings::default())

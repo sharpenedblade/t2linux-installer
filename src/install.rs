@@ -47,11 +47,8 @@ impl InstallSettings {
         }
     }
     async fn flash_iso(&self, iso_file: &mut fs::File) -> Result<()> {
-        let mut target_disk = fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .truncate(true)
-            .open(format!("/dev/{}", &self.flash_disk))?;
+        let target_disk_path = format!("/dev/{}", &self.flash_disk);
+        let mut target_disk = crate::macos::open_restricted_file(target_disk_path.as_str());
         io::copy(iso_file, &mut target_disk)?;
         Ok(())
     }

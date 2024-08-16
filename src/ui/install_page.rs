@@ -1,4 +1,3 @@
-use crate::error::Error;
 use crate::install::{InstallProgress, InstallSettings};
 use crate::ui::app::{AppMessage, Page};
 use futures::StreamExt;
