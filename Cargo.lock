@@ -829,16 +829,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9fc0510504f03c51ada170672ac806f1f105a88aa97a5281117e1ddc3368e51a"
 
 [[package]]
-name = "fd-passing"
-version = "0.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57d3a04c9a3da44588fb6fddd02dda430b39f28e9726b3679af11087a18693fd"
-dependencies = [
- "gcc",
- "libc",
-]
-
-[[package]]
 name = "fdeflate"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1035,12 +1025,6 @@ dependencies = [
  "pin-utils",
  "slab",
 ]
-
-[[package]]
-name = "gcc"
-version = "0.3.55"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f5f3913fa0bfe7ee1fd8248b6b9f42a5af4b9d65ec2dd2c3c26132b950ecfc2"
 
 [[package]]
 name = "generic-array"
@@ -1685,9 +1669,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.155"
+version = "0.2.158"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97b3888a4aecf77e811145cadf6eef5901f4782c53886191b2f693f24761847c"
+checksum = "d8adc4bb1803a324070e64a98ae98f38934d91957a99cfb3a43dcbc01bc56439"
 
 [[package]]
 name = "libloading"
@@ -2824,15 +2808,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d369a96f978623eb3dc28807c4852d6cc617fed53da5d3c400feff1ef34a714a"
 
 [[package]]
-name = "sendfd"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "604b71b8fc267e13bb3023a2c901126c8f349393666a6d98ac1ae5729b701798"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "serde"
 version = "1.0.206"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3168,13 +3143,14 @@ name = "t2linux-installer"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "fd-passing",
  "futures",
  "iced",
+ "libc",
  "passfd",
  "plist",
  "reqwest",
- "sendfd",
+ "security-framework",
+ "security-framework-sys",
  "serde",
  "serde_json",
  "thiserror",

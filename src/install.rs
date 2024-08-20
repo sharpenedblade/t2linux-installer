@@ -1,3 +1,4 @@
+use crate::authopen;
 use crate::diskutil;
 use crate::distro::Distro;
 use crate::error::Error;
@@ -46,9 +47,10 @@ impl InstallSettings {
             macos_size,
         }
     }
-    async fn flash_iso(&self, iso_file: &mut fs::File) -> Result<()> {
+    fn flash_iso(&self, iso_file: &mut fs::File) -> Result<()> {
         let target_disk_path = format!("/dev/{}", &self.flash_disk);
-        let mut target_disk = crate::macos::open_restricted_file(target_disk_path.as_str());
+        let mut target_disk =
+            authopen::open_macos(target_disk_path, authopen::OpenOption::ReadWrite)?;
         io::copy(iso_file, &mut target_disk)?;
         Ok(())
     }
@@ -76,10 +78,7 @@ impl InstallSettings {
                         Some((InstallProgress::DownloadedIso, state))
                     }
                     InstallStep::FlashIso => {
-                        let Ok(_) = state
-                            .settings
-                            .flash_iso(state.iso_file.as_mut().unwrap())
-                            .await
+                        let Ok(_) = state.settings.flash_iso(state.iso_file.as_mut().unwrap())
                         else {
                             state.step = InstallStep::Finished;
                             return Some((InstallProgress::Failed(Error::IsoFlash), state));

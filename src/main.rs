@@ -6,11 +6,11 @@ mod ui {
     pub mod install_page;
     pub mod main_page;
 }
+mod authopen;
 mod diskutil;
 mod distro;
 mod error;
 mod install;
-mod macos;
 
 fn main() -> iced::Result {
     App::run(Settings::default())
