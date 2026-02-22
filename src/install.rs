@@ -1,15 +1,9 @@
 use crate::distro::Distro;
 use crate::error::Error;
-use futures::{Stream, StreamExt};
+use futures::Stream;
+use iced::{stream::channel, task::Sipper};
 use std::fs;
 use tokio_util::sync::CancellationToken;
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-enum InstallStep {
-    Start,
-    DownloadIso,
-    Finished,
-}
 
 #[derive(Debug)]
 pub enum InstallProgress {
@@ -21,57 +15,52 @@ pub enum InstallProgress {
 
 #[derive(Debug)]
 struct Installer {
-    step: InstallStep,
-    settings: DownloadSettings,
+    settings: InstallSettings,
     iso_file: Option<fs::File>,
     ct: CancellationToken,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct DownloadSettings {
+pub struct InstallSettings {
     distro: Distro,
 }
 
-impl DownloadSettings {
+impl InstallSettings {
     pub fn new(distro: Distro) -> Self {
         Self { distro }
     }
     pub fn install(&self, ct: CancellationToken) -> impl Stream<Item = InstallProgress> {
         let settings = self.clone();
-        futures::stream::unfold(
-            Installer {
-                step: InstallStep::Start,
-                settings,
-                iso_file: None,
-                ct,
-            },
-            |mut state| async move {
-                match state.step {
-                    InstallStep::Start => {
-                        state.step = InstallStep::DownloadIso;
-                        Some((InstallProgress::IsoDownloadStart, state))
-                    }
-                    InstallStep::DownloadIso => {
-                        let Ok(iso) = state.settings.distro.download_iso(state.ct.clone()).await
-                        else {
-                            state.step = InstallStep::Finished;
-                            return Some((
-                                InstallProgress::Failed(if state.ct.clone().is_cancelled() {
-                                    Error::Cancelled
-                                } else {
-                                    Error::IsoDownload
-                                }),
-                                state,
-                            ));
-                        };
-                        state.iso_file = Some(iso);
-                        state.step = InstallStep::Finished;
-                        Some((InstallProgress::Finished, state))
-                    }
-                    InstallStep::Finished => None,
+        let mut state = Installer {
+            settings,
+            iso_file: None,
+            ct,
+        };
+        channel(
+            10,
+            async move |mut sender: futures_channel::mpsc::Sender<InstallProgress>| {
+                sender.try_send(InstallProgress::IsoDownloadStart).unwrap();
+                let mut download = state.settings.distro.download_iso(state.ct.clone()).pin();
+                while let Some(progress) = download.sip().await {
+                    sender
+                        .try_send(InstallProgress::IsoDownloadProgress(progress))
+                        .unwrap();
                 }
+                let Ok(iso) = download.await else {
+                    sender
+                        .try_send(InstallProgress::Failed(
+                            if state.ct.clone().is_cancelled() {
+                                Error::Cancelled
+                            } else {
+                                Error::IsoDownload
+                            },
+                        ))
+                        .unwrap();
+                    return;
+                };
+                state.iso_file = Some(iso);
+                sender.try_send(InstallProgress::Finished).unwrap();
             },
         )
-        .boxed()
     }
 }

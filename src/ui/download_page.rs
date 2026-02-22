@@ -1,14 +1,15 @@
-use crate::install::{DownloadSettings, InstallProgress};
+use crate::install::{InstallProgress, InstallSettings};
 use crate::ui::app::{AppMessage, Page};
 use crate::ui::finish_page;
 use futures::StreamExt;
 use iced::widget::{button, column, container, text};
 use iced::Length;
+use std::hash::{Hash, Hasher};
 use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Clone)]
 pub struct DownloadPage {
-    settings: DownloadSettings,
+    settings: InstallSettings,
     state: DownloadState,
     progress: f64,
     ct: CancellationToken,
@@ -31,7 +32,7 @@ pub enum DownloadPageMessage {
 }
 
 impl DownloadPage {
-    pub fn new(settings: DownloadSettings) -> Self {
+    pub fn new(settings: InstallSettings) -> Self {
         Self {
             progress: 0.0,
             settings,
@@ -93,16 +94,26 @@ impl Page for DownloadPage {
     }
 
     fn subscription(&self) -> iced::Subscription<AppMessage> {
-        let install: iced::Subscription<AppMessage> = iced::Subscription::run_with(
-            &self,
-            DownloadPage::subscription_task
-                as (fn(&DownloadPage) -> impl futures::Stream<Item = AppMessage>),
-        );
-        let subscriptions: Vec<iced::Subscription<AppMessage>> = vec![install];
-        iced::Subscription::batch(subscriptions)
+        let init = DownloadSubState {
+            settings: self.settings.clone(),
+            ct: self.ct.clone(),
+        };
+        iced::Subscription::run_with(init, DownloadSubState::subscription_task)
     }
 }
-impl DownloadPage {
+
+#[derive(Debug, Clone)]
+pub struct DownloadSubState {
+    settings: InstallSettings,
+    ct: CancellationToken,
+}
+
+impl Hash for DownloadSubState {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.settings.hash(state);
+    }
+}
+impl DownloadSubState {
     fn subscription_task(&self) -> impl futures::Stream<Item = AppMessage> {
         self.settings.install(self.ct.clone()).map(|msg| match msg {
             InstallProgress::IsoDownloadStart => {

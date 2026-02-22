@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use futures::StreamExt;
+use iced::task::{sipper, Straw};
 use serde::{Deserialize, Serialize};
 use std::{fs, io::Write};
 use tokio_util::sync::CancellationToken;
@@ -30,31 +31,43 @@ impl Distro {
         Ok(iso_metadata.all)
     }
 
-    pub async fn download_iso(&self, ct: CancellationToken) -> Result<fs::File> {
-        let client = reqwest::Client::new();
-        fs::remove_file("download.iso").ok();
-        let mut iso_file = fs::OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open("download.iso")?;
-        for url in &self.iso {
-            let mut request = client.get(url).send().await?.bytes_stream();
-            while let Some(Ok(data)) = request.next().await {
-                if ct.is_cancelled() {
-                    return Err(anyhow!("Download cancelled"));
-                };
-                iso_file.write_all(&data)?;
-            }
-        }
-        if let Some(compression_algo) = &self.iso_compression {
-            match compression_algo {
-                CompressionAlgorithim::Zip => {
-                    let mut archive = zip::ZipArchive::new(iso_file.try_clone().unwrap())?;
-                    let mut decompressed_file = archive.by_index(0)?;
-                    std::io::copy(&mut decompressed_file, &mut iso_file)?;
+    pub fn download_iso(&self, ct: CancellationToken) -> impl Straw<fs::File, f64, anyhow::Error> {
+        let s = self.clone();
+        sipper(async move |mut sender| {
+            let client = reqwest::Client::new();
+            fs::remove_file("download.iso").ok();
+            let mut iso_file = fs::OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open("download.iso")?;
+            for url in &s.iso {
+                let request = client.get(url).send().await?;
+                let total_len = request.content_length();
+                let mut current_len: u64 = 0;
+                let mut data = request.bytes_stream();
+                while let Some(Ok(data)) = data.next().await {
+                    if ct.is_cancelled() {
+                        return Err(anyhow!("Download cancelled"));
+                    };
+                    iso_file.write_all(&data)?;
+                    current_len += data.len() as u64;
+                    if let Some(total_len) = total_len {
+                        sender.send((current_len as f64) / (total_len as f64)).await;
+                    } else {
+                        sender.send(0.0).await;
+                    }
                 }
             }
-        }
-        Ok(fs::OpenOptions::new().read(true).open("download.iso")?)
+            if let Some(compression_algo) = &s.iso_compression {
+                match compression_algo {
+                    CompressionAlgorithim::Zip => {
+                        let mut archive = zip::ZipArchive::new(iso_file.try_clone().unwrap())?;
+                        let mut decompressed_file = archive.by_index(0)?;
+                        std::io::copy(&mut decompressed_file, &mut iso_file)?;
+                    }
+                }
+            }
+            Ok(fs::OpenOptions::new().read(true).open("download.iso")?)
+        })
     }
 }

@@ -2,7 +2,7 @@ use crate::ui::{
     app::{AppMessage, Page},
     download_page,
 };
-use crate::{distro::Distro, install::DownloadSettings};
+use crate::{distro::Distro, install::InstallSettings};
 use iced::widget::{button, column, radio, text};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -28,7 +28,7 @@ impl Page for MainPage {
             match msg {
                 MainPageMessage::PickDistro(distro_index) => self.distro_index = Some(distro_index),
                 MainPageMessage::StartInstall => {
-                    let install_settings = DownloadSettings::new(
+                    let install_settings = InstallSettings::new(
                         Distro::get_all()
                             .unwrap()
                             .get(self.distro_index.unwrap())
