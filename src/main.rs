@@ -6,7 +6,6 @@ mod ui {
     pub mod install_page;
     pub mod main_page;
 }
-mod diskutil;
 mod distro;
 mod error;
 mod install;

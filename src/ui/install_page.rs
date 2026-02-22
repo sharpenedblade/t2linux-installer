@@ -1,4 +1,3 @@
-use crate::error::Error;
 use crate::install::{InstallProgress, InstallSettings};
 use crate::ui::app::{AppMessage, Page};
 use futures::StreamExt;
@@ -16,8 +15,6 @@ enum InstallState {
     NotStarted,
     Starting,
     DownloadingIso,
-    FlashingIso,
-    ResizingMacos,
     Failed(String),
     Finished,
 }
@@ -26,8 +23,6 @@ enum InstallState {
 pub enum InstallPageMessage {
     StartInstallation,
     StartedIsoDownload,
-    StartedIsoFlash,
-    StartedMacosResize,
     Finished,
     Failed(String),
 }
@@ -53,12 +48,6 @@ impl Page for InstallPage {
                 InstallPageMessage::StartedIsoDownload => {
                     self.state = InstallState::DownloadingIso;
                 }
-                InstallPageMessage::StartedIsoFlash => {
-                    self.state = InstallState::FlashingIso;
-                }
-                InstallPageMessage::StartedMacosResize => {
-                    self.state = InstallState::ResizingMacos;
-                }
                 InstallPageMessage::Finished => self.state = InstallState::Finished,
                 InstallPageMessage::Failed(err_msg) => self.state = InstallState::Failed(err_msg),
             }
@@ -82,12 +71,6 @@ impl Page for InstallPage {
             InstallState::DownloadingIso  => {
                 column![text("Downloading ISO").size(24), text("Please wait...")].spacing(16)
             }
-            InstallState::FlashingIso => {
-                column![text("Flashing ISO").size(24), text("Please wait...")].spacing(16)
-            },
-            InstallState::ResizingMacos => {
-                column![text("Resizing MacOS partition").size(24), text("Please wait...")].spacing(16)
-            },
             InstallState::Finished => {
                 column![
                     text("Ready for installation!").size(24),
@@ -112,14 +95,8 @@ impl Page for InstallPage {
         let install: iced::Subscription<AppMessage> = iced::subscription::run_with_id(
             0,
             self.install_settings.install().map(|msg| match msg {
-                InstallProgress::Started => {
+                InstallProgress::DownloadingIso => {
                     AppMessage::InstallPage(InstallPageMessage::StartedIsoDownload)
-                }
-                InstallProgress::DownloadedIso => {
-                    AppMessage::InstallPage(InstallPageMessage::StartedIsoFlash)
-                }
-                InstallProgress::ResizingMacos => {
-                    AppMessage::InstallPage(InstallPageMessage::StartedMacosResize)
                 }
                 InstallProgress::Finished => AppMessage::InstallPage(InstallPageMessage::Finished),
                 InstallProgress::Failed(err) => {
