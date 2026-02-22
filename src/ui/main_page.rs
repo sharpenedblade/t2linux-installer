@@ -27,7 +27,7 @@ impl Page for MainPage {
         message: AppMessage,
     ) -> (Option<Box<dyn Page>>, iced::Command<AppMessage>) {
         let mut page: Option<Box<dyn Page>> = None;
-        if let AppMessage::MainPage(msg) = message {
+        if let AppMessage::Main(msg) = message {
             match msg {
                 MainPageMessage::PickDistro(distro_index) => self.distro_index = Some(distro_index),
                 MainPageMessage::StartInstall => {
@@ -50,14 +50,13 @@ impl Page for MainPage {
         for (i, distro) in distros.iter().enumerate() {
             distro_list =
                 distro_list.push(radio(distro.name.clone(), i, self.distro_index, |_| {
-                    AppMessage::MainPage(MainPageMessage::PickDistro(i))
+                    AppMessage::Main(MainPageMessage::PickDistro(i))
                 }));
         }
 
         column![
             distro_list,
-            button("Begin installation")
-                .on_press(AppMessage::MainPage(MainPageMessage::StartInstall))
+            button("Begin installation").on_press(AppMessage::Main(MainPageMessage::StartInstall))
         ]
         .spacing(16)
         .padding(8)

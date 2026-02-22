@@ -1,11 +1,11 @@
 use crate::ui::{download_page, finish_page, main_page};
 use iced::{executor, Application, Command};
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum AppMessage {
-    MainPage(main_page::MainPageMessage),
-    DownloadPage(download_page::DownloadPageMessage),
-    FinishPage(finish_page::FinishPageMessage),
+    Main(main_page::MainPageMessage),
+    Download(download_page::DownloadPageMessage),
+    Finish(finish_page::FinishPageMessage),
 }
 
 pub struct App {

@@ -1,7 +1,8 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::{fs, io::Write};
+use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Distro {
@@ -29,7 +30,7 @@ impl Distro {
         Ok(iso_metadata.all)
     }
 
-    pub async fn download_iso(&self) -> Result<fs::File> {
+    pub async fn download_iso(&self, ct: CancellationToken) -> Result<fs::File> {
         let client = reqwest::Client::new();
         fs::remove_file("download.iso").ok();
         let mut iso_file = fs::OpenOptions::new()
@@ -39,6 +40,9 @@ impl Distro {
         for url in &self.iso {
             let mut request = client.get(url).send().await?.bytes_stream();
             while let Some(Ok(data)) = request.next().await {
+                if ct.is_cancelled() {
+                    return Err(anyhow!("Download cancelled"));
+                };
                 iso_file.write_all(&data)?;
             }
         }

@@ -6,4 +6,6 @@ pub enum Error {
     FileWrite(#[from] std::io::Error),
     #[error("failed to download ISO")]
     IsoDownload,
+    #[error("installation cancelled")]
+    Cancelled,
 }

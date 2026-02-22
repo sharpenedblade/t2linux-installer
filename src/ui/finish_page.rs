@@ -23,7 +23,7 @@ impl Page for FinishPage {
     ) -> (Option<Box<(dyn Page)>>, iced::Command<AppMessage>) {
         let command: iced::Command<AppMessage> = iced::Command::none();
         let page: Option<Box<dyn Page>> = None;
-        if let AppMessage::FinishPage(msg) = message {
+        if let AppMessage::Finish(msg) = message {
             match msg {
                 FinishPageMessage::Exit => {
                     todo!("Implement app shutdown");
@@ -36,7 +36,7 @@ impl Page for FinishPage {
         container(
             column![
                 text("Finished download. You can flash the ISO now."),
-                button("Exit").on_press(AppMessage::FinishPage(FinishPageMessage::Exit))
+                button("Exit").on_press(AppMessage::Finish(FinishPageMessage::Exit))
             ]
             .spacing(16),
         )

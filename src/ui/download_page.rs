@@ -2,34 +2,41 @@ use crate::install::{DownloadSettings, InstallProgress};
 use crate::ui::app::{AppMessage, Page};
 use crate::ui::finish_page;
 use futures::StreamExt;
-use iced::widget::{column, container, text};
+use iced::widget::{button, column, container, text};
 use iced::Length;
+use tokio_util::sync::CancellationToken;
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct DownloadPage {
     settings: DownloadSettings,
     state: DownloadState,
+    progress: f64,
+    ct: CancellationToken,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 enum DownloadState {
     Downloading,
+    Cancelled,
     Failed(String),
-    Finished,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum DownloadPageMessage {
     StartedIsoDownload,
+    DownloadProgress(f64),
     Finished,
     Failed(String),
+    Cancel,
 }
 
 impl DownloadPage {
     pub fn new(settings: DownloadSettings) -> Self {
         Self {
+            progress: 0.0,
             settings,
             state: DownloadState::Downloading,
+            ct: CancellationToken::new(),
         }
     }
 }
@@ -41,31 +48,40 @@ impl Page for DownloadPage {
     ) -> (Option<Box<(dyn Page)>>, iced::Command<AppMessage>) {
         let command: iced::Command<AppMessage> = iced::Command::none();
         let mut page: Option<Box<dyn Page>> = None;
-        if let AppMessage::DownloadPage(msg) = message {
+        if let AppMessage::Download(msg) = message {
             match msg {
                 DownloadPageMessage::StartedIsoDownload => {
                     self.state = DownloadState::Downloading;
                 }
+                DownloadPageMessage::Cancel => {
+                    self.ct.cancel();
+                }
                 DownloadPageMessage::Finished => {
                     page = Some(Box::new(finish_page::FinishPage::new()))
                 }
-                DownloadPageMessage::Failed(err_msg) => self.state = DownloadState::Failed(err_msg),
+                DownloadPageMessage::Failed(err_msg) => {
+                    if self.ct.is_cancelled() {
+                        self.state = DownloadState::Cancelled
+                    } else {
+                        self.state = DownloadState::Failed(err_msg)
+                    }
+                }
+                DownloadPageMessage::DownloadProgress(progress) => self.progress = progress,
             }
         }
         (page, command)
     }
     fn view(&self) -> iced::Element<AppMessage> {
         container(match &self.state {
-            DownloadState::Downloading => {
-                column![text("Downloading ISO").size(24), text("Please wait...")].spacing(16)
-            }
-            DownloadState::Finished => column![
-                text("Ready for installation!").size(24),
-                text("You can reboot to the linux installer now.")
+            DownloadState::Downloading => column![
+                text("Downloading ISO").size(24),
+                text("Please wait..."),
+                button("Cancel").on_press(AppMessage::Download(DownloadPageMessage::Cancel))
             ]
             .spacing(16),
+            DownloadState::Cancelled => column![text("Download cancelled").size(24),].spacing(16),
             DownloadState::Failed(err_msg) => column![
-                text("Installation failed").size(24),
+                text("Download failed").size(24),
                 text(format!(
                     "Error: {err_msg}. Please try again or file a bug report"
                 ))
@@ -82,22 +98,20 @@ impl Page for DownloadPage {
     fn subscription(&self) -> iced::Subscription<AppMessage> {
         let install: iced::Subscription<AppMessage> = iced::subscription::run_with_id(
             0,
-            self.settings.install().map(|msg| match msg {
-                InstallProgress::DownloadingIso => {
-                    AppMessage::DownloadPage(DownloadPageMessage::StartedIsoDownload)
+            self.settings.install(self.ct.clone()).map(|msg| match msg {
+                InstallProgress::IsoDownloadStart => {
+                    AppMessage::Download(DownloadPageMessage::StartedIsoDownload)
                 }
-                InstallProgress::Finished => {
-                    AppMessage::DownloadPage(DownloadPageMessage::Finished)
+                InstallProgress::IsoDownloadProgress(progress) => {
+                    AppMessage::Download(DownloadPageMessage::DownloadProgress(progress))
                 }
+                InstallProgress::Finished => AppMessage::Download(DownloadPageMessage::Finished),
                 InstallProgress::Failed(err) => {
-                    AppMessage::DownloadPage(DownloadPageMessage::Failed(err.to_string()))
+                    AppMessage::Download(DownloadPageMessage::Failed(err.to_string()))
                 }
             }),
         );
-        let mut subscriptions: Vec<iced::Subscription<AppMessage>> = vec![];
-        if self.state != DownloadState::Finished {
-            subscriptions.push(install)
-        }
+        let subscriptions: Vec<iced::Subscription<AppMessage>> = vec![install];
         iced::Subscription::batch(subscriptions)
     }
 }
