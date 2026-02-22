@@ -1,5 +1,4 @@
 use crate::ui::{download_page, finish_page, main_page};
-use iced::{executor, Application, Command};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum AppMessage {
@@ -13,32 +12,26 @@ pub struct App {
 }
 
 pub trait Page {
-    fn update(&mut self, message: AppMessage)
-        -> (Option<Box<dyn Page>>, iced::Command<AppMessage>);
+    fn update(&mut self, message: AppMessage) -> (Option<Box<dyn Page>>, iced::Task<AppMessage>);
     fn view(&self) -> iced::Element<AppMessage>;
     fn subscription(&self) -> iced::Subscription<AppMessage>;
 }
 
-impl Application for App {
-    type Executor = executor::Default;
-    type Theme = iced::Theme;
-    type Flags = ();
-    type Message = AppMessage;
-
-    fn new(_flags: Self::Flags) -> (Self, iced::Command<Self::Message>) {
+impl App {
+    pub fn new(_flags: ()) -> (Self, iced::Task<AppMessage>) {
         (
             Self {
                 page: Box::new(main_page::MainPage::new()),
             },
-            Command::none(),
+            iced::Task::none(),
         )
     }
 
-    fn title(&self) -> String {
+    pub fn title(&self) -> String {
         String::from("t2linux Installer")
     }
 
-    fn update(&mut self, message: Self::Message) -> iced::Command<Self::Message> {
+    pub fn update(&mut self, message: AppMessage) -> iced::Task<AppMessage> {
         let (page, command) = self.page.update(message);
         if let Some(p) = page {
             self.page = p;
@@ -46,11 +39,11 @@ impl Application for App {
         command
     }
 
-    fn view(&self) -> iced::Element<Self::Message> {
+    pub fn view(&self) -> iced::Element<AppMessage> {
         self.page.view()
     }
 
-    fn subscription(&self) -> iced::Subscription<Self::Message> {
+    pub fn subscription(&self) -> iced::Subscription<AppMessage> {
         self.page.subscription()
     }
 }

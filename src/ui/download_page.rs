@@ -42,11 +42,8 @@ impl DownloadPage {
 }
 
 impl Page for DownloadPage {
-    fn update(
-        &mut self,
-        message: AppMessage,
-    ) -> (Option<Box<(dyn Page)>>, iced::Command<AppMessage>) {
-        let command: iced::Command<AppMessage> = iced::Command::none();
+    fn update(&mut self, message: AppMessage) -> (Option<Box<(dyn Page)>>, iced::Task<AppMessage>) {
+        let command: iced::Task<AppMessage> = iced::Task::none();
         let mut page: Option<Box<dyn Page>> = None;
         if let AppMessage::Download(msg) = message {
             match msg {
@@ -96,7 +93,7 @@ impl Page for DownloadPage {
     }
 
     fn subscription(&self) -> iced::Subscription<AppMessage> {
-        let install: iced::Subscription<AppMessage> = iced::subscription::run_with_id(
+        let install: iced::Subscription<AppMessage> = iced::Subscription::run_with_id(
             0,
             self.settings.install(self.ct.clone()).map(|msg| match msg {
                 InstallProgress::IsoDownloadStart => {

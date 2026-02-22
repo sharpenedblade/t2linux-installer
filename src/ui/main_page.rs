@@ -22,10 +22,7 @@ impl MainPage {
 }
 
 impl Page for MainPage {
-    fn update(
-        &mut self,
-        message: AppMessage,
-    ) -> (Option<Box<dyn Page>>, iced::Command<AppMessage>) {
+    fn update(&mut self, message: AppMessage) -> (Option<Box<dyn Page>>, iced::Task<AppMessage>) {
         let mut page: Option<Box<dyn Page>> = None;
         if let AppMessage::Main(msg) = message {
             match msg {
@@ -42,7 +39,7 @@ impl Page for MainPage {
                 }
             }
         }
-        (page, iced::Command::none())
+        (page, iced::Task::none())
     }
     fn view(&self) -> iced::Element<AppMessage> {
         let mut distro_list = column![text("Choose a distro").size(24),].spacing(8);

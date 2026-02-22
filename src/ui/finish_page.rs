@@ -17,11 +17,8 @@ impl FinishPage {
 }
 
 impl Page for FinishPage {
-    fn update(
-        &mut self,
-        message: AppMessage,
-    ) -> (Option<Box<(dyn Page)>>, iced::Command<AppMessage>) {
-        let command: iced::Command<AppMessage> = iced::Command::none();
+    fn update(&mut self, message: AppMessage) -> (Option<Box<(dyn Page)>>, iced::Task<AppMessage>) {
+        let command: iced::Task<AppMessage> = iced::Task::none();
         let page: Option<Box<dyn Page>> = None;
         if let AppMessage::Finish(msg) = message {
             match msg {
