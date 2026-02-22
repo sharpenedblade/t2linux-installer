@@ -18,7 +18,7 @@ pub trait Page {
 }
 
 impl App {
-    pub fn new(_flags: ()) -> (Self, iced::Task<AppMessage>) {
+    pub fn new() -> (Self, iced::Task<AppMessage>) {
         (
             Self {
                 page: Box::new(main_page::MainPage::new()),

@@ -4,14 +4,14 @@ use serde::{Deserialize, Serialize};
 use std::{fs, io::Write};
 use tokio_util::sync::CancellationToken;
 
-#[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize, Hash)]
 pub struct Distro {
     pub name: String,
     iso_compression: Option<CompressionAlgorithim>,
     iso: Vec<String>,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize, Hash)]
 #[serde(rename_all = "snake_case")]
 enum CompressionAlgorithim {
     Zip,

@@ -27,7 +27,7 @@ struct Installer {
     ct: CancellationToken,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct DownloadSettings {
     distro: Distro,
 }

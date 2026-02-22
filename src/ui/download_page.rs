@@ -93,22 +93,28 @@ impl Page for DownloadPage {
     }
 
     fn subscription(&self) -> iced::Subscription<AppMessage> {
-        let install: iced::Subscription<AppMessage> = iced::Subscription::run_with_id(
-            0,
-            self.settings.install(self.ct.clone()).map(|msg| match msg {
-                InstallProgress::IsoDownloadStart => {
-                    AppMessage::Download(DownloadPageMessage::StartedIsoDownload)
-                }
-                InstallProgress::IsoDownloadProgress(progress) => {
-                    AppMessage::Download(DownloadPageMessage::DownloadProgress(progress))
-                }
-                InstallProgress::Finished => AppMessage::Download(DownloadPageMessage::Finished),
-                InstallProgress::Failed(err) => {
-                    AppMessage::Download(DownloadPageMessage::Failed(err.to_string()))
-                }
-            }),
+        let install: iced::Subscription<AppMessage> = iced::Subscription::run_with(
+            &self,
+            DownloadPage::subscription_task
+                as (fn(&DownloadPage) -> impl futures::Stream<Item = AppMessage>),
         );
         let subscriptions: Vec<iced::Subscription<AppMessage>> = vec![install];
         iced::Subscription::batch(subscriptions)
+    }
+}
+impl DownloadPage {
+    fn subscription_task(&self) -> impl futures::Stream<Item = AppMessage> {
+        self.settings.install(self.ct.clone()).map(|msg| match msg {
+            InstallProgress::IsoDownloadStart => {
+                AppMessage::Download(DownloadPageMessage::StartedIsoDownload)
+            }
+            InstallProgress::IsoDownloadProgress(progress) => {
+                AppMessage::Download(DownloadPageMessage::DownloadProgress(progress))
+            }
+            InstallProgress::Finished => AppMessage::Download(DownloadPageMessage::Finished),
+            InstallProgress::Failed(err) => {
+                AppMessage::Download(DownloadPageMessage::Failed(err.to_string()))
+            }
+        })
     }
 }

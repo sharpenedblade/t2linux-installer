@@ -11,7 +11,8 @@ mod error;
 mod install;
 
 fn main() -> iced::Result {
-    iced::application(App::title, App::update, App::view)
+    iced::application(App::new, App::update, App::view)
+        .title(App::title)
         .subscription(App::subscription)
-        .run_with(|| App::new(()))
+        .run()
 }
