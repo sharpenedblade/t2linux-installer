@@ -20,16 +20,16 @@ pub enum InstallProgress {
 #[derive(Debug)]
 struct Installer {
     step: InstallStep,
-    settings: InstallSettings,
+    settings: DownloadSettings,
     iso_file: Option<fs::File>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct InstallSettings {
+pub struct DownloadSettings {
     distro: Distro,
 }
 
-impl InstallSettings {
+impl DownloadSettings {
     pub fn new(distro: Distro) -> Self {
         Self { distro }
     }

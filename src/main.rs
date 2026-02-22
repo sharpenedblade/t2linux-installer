@@ -3,7 +3,8 @@ use iced::{Application, Settings};
 
 mod ui {
     pub mod app;
-    pub mod install_page;
+    pub mod download_page;
+    pub mod finish_page;
     pub mod main_page;
 }
 mod distro;
