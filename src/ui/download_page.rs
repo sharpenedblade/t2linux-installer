@@ -2,9 +2,9 @@ use crate::install::{InstallProgress, InstallSettings};
 use crate::ui::app::{AppMessage, Page};
 use crate::ui::finish_page;
 use futures::StreamExt;
+use iced::Length;
 use iced::alignment::Vertical;
 use iced::widget::{button, column, container, progress_bar, row, text};
-use iced::Length;
 use std::hash::{Hash, Hasher};
 use tokio_util::sync::CancellationToken;
 
@@ -67,7 +67,7 @@ impl Page for DownloadPage {
             column![
                 text("Downloading ISO").size(24),
                 row![
-                    text(format!("{:.2}%", self.progress)),
+                    text(format!("{:.2}%", self.progress * 100.0)),
                     progress_bar(0.0..=100.0, self.progress as f32 * 100.0),
                 ]
                 .width(400)
