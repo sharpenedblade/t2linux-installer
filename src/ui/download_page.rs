@@ -2,24 +2,19 @@ use crate::install::{InstallProgress, InstallSettings};
 use crate::ui::app::{AppMessage, Page};
 use crate::ui::finish_page;
 use futures::StreamExt;
-use iced::widget::{button, column, container, text};
+use iced::alignment::Vertical;
+use iced::widget::{button, column, container, progress_bar, row, text};
 use iced::Length;
 use std::hash::{Hash, Hasher};
 use tokio_util::sync::CancellationToken;
 
+use super::finish_page::FinishState;
+
 #[derive(Debug, Clone)]
 pub struct DownloadPage {
     settings: InstallSettings,
-    state: DownloadState,
     progress: f64,
     ct: CancellationToken,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-enum DownloadState {
-    Downloading,
-    Cancelled,
-    Failed(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -36,7 +31,6 @@ impl DownloadPage {
         Self {
             progress: 0.0,
             settings,
-            state: DownloadState::Downloading,
             ct: CancellationToken::new(),
         }
     }
@@ -48,21 +42,20 @@ impl Page for DownloadPage {
         let mut page: Option<Box<dyn Page>> = None;
         if let AppMessage::Download(msg) = message {
             match msg {
-                DownloadPageMessage::StartedIsoDownload => {
-                    self.state = DownloadState::Downloading;
-                }
+                DownloadPageMessage::StartedIsoDownload => {}
                 DownloadPageMessage::Cancel => {
                     self.ct.cancel();
                 }
                 DownloadPageMessage::Finished => {
-                    page = Some(Box::new(finish_page::FinishPage::new()))
+                    page = Some(Box::new(finish_page::FinishPage::new(FinishState::Clean)))
                 }
-                DownloadPageMessage::Failed(err_msg) => {
-                    if self.ct.is_cancelled() {
-                        self.state = DownloadState::Cancelled
+                DownloadPageMessage::Failed(_) => {
+                    let state = if self.ct.is_cancelled() {
+                        FinishState::Cancelled
                     } else {
-                        self.state = DownloadState::Failed(err_msg)
-                    }
+                        FinishState::Error
+                    };
+                    page = Some(Box::new(finish_page::FinishPage::new(state)))
                 }
                 DownloadPageMessage::DownloadProgress(progress) => self.progress = progress,
             }
@@ -70,22 +63,20 @@ impl Page for DownloadPage {
         (page, command)
     }
     fn view(&self) -> iced::Element<AppMessage> {
-        container(match &self.state {
-            DownloadState::Downloading => column![
+        container(
+            column![
                 text("Downloading ISO").size(24),
-                text("Please wait..."),
+                row![
+                    text(format!("{:.2}%", self.progress)),
+                    progress_bar(0.0..=100.0, self.progress as f32 * 100.0),
+                ]
+                .width(400)
+                .spacing(16)
+                .align_y(Vertical::Center),
                 button("Cancel").on_press(AppMessage::Download(DownloadPageMessage::Cancel))
             ]
             .spacing(16),
-            DownloadState::Cancelled => column![text("Download cancelled").size(24),].spacing(16),
-            DownloadState::Failed(err_msg) => column![
-                text("Download failed").size(24),
-                text(format!(
-                    "Error: {err_msg}. Please try again or file a bug report"
-                ))
-            ]
-            .spacing(16),
-        })
+        )
         .align_x(iced::alignment::Horizontal::Center)
         .align_y(iced::alignment::Vertical::Center)
         .width(Length::Fill)

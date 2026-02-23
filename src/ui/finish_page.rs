@@ -1,9 +1,19 @@
 use crate::ui::app::{AppMessage, Page};
 use iced::widget::{button, column, container, text};
+use iced::window::{self};
 use iced::Length;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct FinishPage {}
+pub enum FinishState {
+    Clean,
+    Error,
+    Cancelled,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct FinishPage {
+    state: FinishState,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FinishPageMessage {
@@ -11,19 +21,19 @@ pub enum FinishPageMessage {
 }
 
 impl FinishPage {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(state: FinishState) -> Self {
+        Self { state }
     }
 }
 
 impl Page for FinishPage {
     fn update(&mut self, message: AppMessage) -> (Option<Box<(dyn Page)>>, iced::Task<AppMessage>) {
-        let command: iced::Task<AppMessage> = iced::Task::none();
+        let mut command: iced::Task<AppMessage> = iced::Task::none();
         let page: Option<Box<dyn Page>> = None;
         if let AppMessage::Finish(msg) = message {
             match msg {
                 FinishPageMessage::Exit => {
-                    todo!("Implement app shutdown");
+                    command = window::oldest().then(|id| window::close(id.unwrap()));
                 }
             }
         }
@@ -32,7 +42,12 @@ impl Page for FinishPage {
     fn view(&self) -> iced::Element<AppMessage> {
         container(
             column![
-                text("Finished download. You can flash the ISO now."),
+                text(match self.state {
+                    FinishState::Clean => "Finished Download",
+                    FinishState::Error => "Download failed",
+                    FinishState::Cancelled => "Cancelled Download",
+                })
+                .size(24),
                 button("Exit").on_press(AppMessage::Finish(FinishPageMessage::Exit))
             ]
             .spacing(16),

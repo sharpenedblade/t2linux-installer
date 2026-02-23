@@ -3,7 +3,10 @@ use crate::ui::{
     download_page,
 };
 use crate::{distro::Distro, install::InstallSettings};
-use iced::widget::{button, column, radio, text};
+use iced::{
+    widget::{button, column, container, radio, scrollable, text},
+    Length,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MainPageMessage {
@@ -42,7 +45,7 @@ impl Page for MainPage {
         (page, iced::Task::none())
     }
     fn view(&self) -> iced::Element<AppMessage> {
-        let mut distro_list = column![text("Choose a distro").size(24),].spacing(8);
+        let mut distro_list = column![].spacing(16);
         let distros = Distro::get_all().unwrap();
         for (i, distro) in distros.iter().enumerate() {
             distro_list =
@@ -51,12 +54,19 @@ impl Page for MainPage {
                 }));
         }
 
-        column![
-            distro_list,
-            button("Begin installation").on_press(AppMessage::Main(MainPageMessage::StartInstall))
-        ]
-        .spacing(16)
-        .padding(8)
+        container(
+            column![
+                text("Choose a distro").size(24),
+                scrollable(distro_list).height(400).width(400),
+                button("Next").on_press(AppMessage::Main(MainPageMessage::StartInstall))
+            ]
+            .spacing(16)
+            .padding(8),
+        )
+        .align_x(iced::alignment::Horizontal::Center)
+        .align_y(iced::alignment::Vertical::Center)
+        .width(Length::Fill)
+        .height(Length::Fill)
         .into()
     }
 
