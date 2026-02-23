@@ -2,7 +2,7 @@ use crate::distro::Distro;
 use crate::error::Error;
 use futures::Stream;
 use iced::{stream::channel, task::Sipper};
-use std::fs;
+use std::{fs, path::PathBuf};
 use tokio_util::sync::CancellationToken;
 
 #[derive(Debug)]
@@ -23,13 +23,14 @@ struct Installer {
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct InstallSettings {
     distro: Distro,
+    iso_path: PathBuf,
 }
 
 impl InstallSettings {
-    pub fn new(distro: Distro) -> Self {
-        Self { distro }
+    pub fn new(distro: Distro, iso_path: PathBuf) -> Self {
+        Self { distro, iso_path }
     }
-    pub fn install(&self, ct: CancellationToken) -> impl Stream<Item = InstallProgress> {
+    pub fn install(&self, ct: CancellationToken) -> impl Stream<Item = InstallProgress> + use<> {
         let settings = self.clone();
         let mut state = Installer {
             settings,
@@ -40,7 +41,11 @@ impl InstallSettings {
             10,
             async move |mut sender: futures_channel::mpsc::Sender<InstallProgress>| {
                 sender.try_send(InstallProgress::IsoDownloadStart).unwrap();
-                let mut download = state.settings.distro.download_iso(state.ct.clone()).pin();
+                let mut download = state
+                    .settings
+                    .distro
+                    .download_iso(state.settings.iso_path.clone(), state.ct.clone())
+                    .pin();
                 while let Some(progress) = download.sip().await {
                     sender
                         .try_send(InstallProgress::IsoDownloadProgress(progress))

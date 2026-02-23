@@ -105,7 +105,7 @@ impl Hash for DownloadSubState {
     }
 }
 impl DownloadSubState {
-    fn subscription_task(&self) -> impl futures::Stream<Item = AppMessage> {
+    fn subscription_task(&self) -> impl futures::Stream<Item = AppMessage> + use<> {
         self.settings.install(self.ct.clone()).map(|msg| match msg {
             InstallProgress::IsoDownloadStart => {
                 AppMessage::Download(DownloadPageMessage::StartedIsoDownload)

@@ -1,8 +1,8 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use futures::StreamExt;
-use iced::task::{sipper, Straw};
+use iced::task::{Straw, sipper};
 use serde::{Deserialize, Serialize};
-use std::{fs, io::Write};
+use std::{fs, io::Write, path::PathBuf};
 use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize, Hash)]
@@ -31,15 +31,19 @@ impl Distro {
         Ok(iso_metadata.all)
     }
 
-    pub fn download_iso(&self, ct: CancellationToken) -> impl Straw<fs::File, f64, anyhow::Error> {
+    pub fn download_iso(
+        &self,
+        iso_path: PathBuf,
+        ct: CancellationToken,
+    ) -> impl Straw<fs::File, f64, anyhow::Error> {
         let s = self.clone();
         sipper(async move |mut sender| {
             let client = reqwest::Client::new();
-            fs::remove_file("download.iso").ok();
+            fs::remove_file(&iso_path).ok();
             let mut iso_file = fs::OpenOptions::new()
                 .append(true)
                 .create(true)
-                .open("download.iso")?;
+                .open(&iso_path)?;
             for url in &s.iso {
                 let request = client.get(url).send().await?;
                 let total_len = request.content_length();
