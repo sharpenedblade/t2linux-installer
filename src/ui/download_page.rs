@@ -7,6 +7,7 @@ use iced::Length;
 use iced::alignment::Vertical;
 use iced::widget::{button, column, container, progress_bar, row, text};
 use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
 use super::finish_page::FinishState;
@@ -60,7 +61,7 @@ impl Page for DownloadPage {
                     let state = if self.ct.is_cancelled() {
                         FinishState::Cancelled
                     } else {
-                        FinishState::Error(anyhow!(e))
+                        FinishState::Error(Arc::new(anyhow!(e)))
                     };
                     page = Some(Box::new(finish_page::FinishPage::new(state)))
                 }

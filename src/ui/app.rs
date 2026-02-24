@@ -1,6 +1,6 @@
 use crate::ui::{download_page, finish_page, main_page};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum AppMessage {
     Main(main_page::MainPageMessage),
     Download(download_page::DownloadPageMessage),
@@ -23,7 +23,7 @@ impl App {
             Self {
                 page: Box::new(main_page::MainPage::new()),
             },
-            iced::Task::none(),
+            main_page::MainPage::init_tasks(),
         )
     }
 

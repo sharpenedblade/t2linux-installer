@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::ui::app::{AppMessage, Page};
 use iced::Length;
 use iced::widget::{button, column, container, row, text};
@@ -8,7 +10,7 @@ use super::main_page::MainPage;
 #[derive(Debug)]
 pub enum FinishState {
     Clean,
-    Error(anyhow::Error),
+    Error(Arc<anyhow::Error>),
     Cancelled,
 }
 
@@ -40,6 +42,7 @@ impl Page for FinishPage {
                 }
                 FinishPageMessage::Retry => {
                     page = Some(Box::new(MainPage::new()));
+                    command = MainPage::init_tasks();
                 }
             }
         }

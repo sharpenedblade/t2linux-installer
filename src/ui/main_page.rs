@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use crate::ui::{
     app::{AppMessage, Page},
@@ -10,8 +10,12 @@ use iced::{
     widget::{button, column, container, radio, scrollable, text},
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+use super::finish_page::FinishPage;
+
+#[derive(Debug, Clone)]
 pub enum MainPageMessage {
+    LoadDistroList(Vec<Distro>),
+    Err(Arc<anyhow::Error>),
     PickDistro(usize),
     TriggerFilePicker,
     PickIsoFile(PathBuf),
@@ -20,6 +24,7 @@ pub enum MainPageMessage {
 }
 
 pub struct MainPage {
+    distro_list: Option<Vec<Distro>>,
     distro_index: Option<usize>,
     iso_file: Option<PathBuf>,
 }
@@ -27,6 +32,7 @@ pub struct MainPage {
 impl MainPage {
     pub fn new() -> Self {
         Self {
+            distro_list: None,
             distro_index: None,
             iso_file: None,
         }
@@ -43,13 +49,10 @@ impl Page for MainPage {
                 MainPageMessage::StartInstall => {
                     if let Some(distro_index) = self.distro_index
                         && let Some(iso_file) = self.iso_file.clone()
+                        && let Some(distro_list) = self.distro_list.clone()
                     {
                         let install_settings = InstallSettings::new(
-                            Distro::get_all()
-                                .unwrap()
-                                .get(distro_index)
-                                .unwrap()
-                                .clone(),
+                            distro_list.get(distro_index).unwrap().clone(),
                             iso_file,
                         );
                         page = Some(Box::new(download_page::DownloadPage::new(install_settings)))
@@ -59,11 +62,11 @@ impl Page for MainPage {
                     task = open_file(if let Some(i) = self.distro_index {
                         format!(
                             "{}.iso",
-                            Distro::get_all()
-                                .unwrap()
-                                .get(i)
-                                .map(|d| d.name.as_str())
-                                .unwrap_or("unknown")
+                            self.distro_list
+                                .clone()
+                                .and_then(|l| l.get(i).cloned())
+                                .map(|d| d.name.clone())
+                                .unwrap_or("unknown".to_string())
                         )
                     } else {
                         "unknown.iso".to_owned()
@@ -71,18 +74,29 @@ impl Page for MainPage {
                 }
                 MainPageMessage::PickIsoFile(path_buf) => self.iso_file = Some(path_buf),
                 MainPageMessage::Ignore => {}
+                MainPageMessage::LoadDistroList(distros) => self.distro_list = Some(distros),
+                MainPageMessage::Err(error) => {
+                    task = iced::Task::none();
+                    page = Some(Box::new(FinishPage::new(
+                        super::finish_page::FinishState::Error(error),
+                    )))
+                }
             }
+        }
+        if self.distro_list.is_none() {
+            task = Task::batch([task, get_distro_list()]);
         }
         (page, task)
     }
     fn view(&self) -> iced::Element<AppMessage> {
         let mut distro_list = column![].spacing(16);
-        let distros = Distro::get_all().unwrap();
-        for (i, distro) in distros.iter().enumerate() {
-            distro_list =
-                distro_list.push(radio(distro.name.clone(), i, self.distro_index, |_| {
-                    AppMessage::Main(MainPageMessage::PickDistro(i))
-                }));
+        if let Some(distros) = &self.distro_list {
+            for (i, distro) in distros.iter().enumerate() {
+                distro_list =
+                    distro_list.push(radio(distro.name.clone(), i, self.distro_index, |_| {
+                        AppMessage::Main(MainPageMessage::PickDistro(i))
+                    }));
+            }
         }
 
         container(
@@ -108,6 +122,12 @@ impl Page for MainPage {
     }
 }
 
+impl MainPage {
+    pub fn init_tasks() -> Task<AppMessage> {
+        get_distro_list()
+    }
+}
+
 fn open_file(name: String) -> Task<AppMessage> {
     Task::future(
         rfd::AsyncFileDialog::new()
@@ -120,5 +140,11 @@ fn open_file(name: String) -> Task<AppMessage> {
             file_handle.into(),
         ))),
         None => Task::done(AppMessage::Main(MainPageMessage::Ignore)),
+    })
+}
+fn get_distro_list() -> Task<AppMessage> {
+    Task::future(Distro::get_all()).then(|handle| match handle {
+        Ok(distros) => Task::done(AppMessage::Main(MainPageMessage::LoadDistroList(distros))),
+        Err(e) => Task::done(AppMessage::Main(MainPageMessage::Err(Arc::new(e)))),
     })
 }
