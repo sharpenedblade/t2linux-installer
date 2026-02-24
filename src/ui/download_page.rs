@@ -86,7 +86,7 @@ impl Page for DownloadPage {
         let mut col = column![row1,].spacing(16);
         col = col.push(
             row![
-                text(format!("{:.2}%", self.progress * 100.0)),
+                text(format!("{:.2}%", self.progress * 100.0)).width(50),
                 progress_bar(0.0..=100.0, self.progress as f32 * 100.0),
             ]
             .width(400)
