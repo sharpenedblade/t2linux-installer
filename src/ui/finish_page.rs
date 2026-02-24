@@ -1,7 +1,9 @@
 use crate::ui::app::{AppMessage, Page};
 use iced::Length;
-use iced::widget::{button, column, container, text};
+use iced::widget::{button, column, container, row, text};
 use iced::window::{self};
+
+use super::main_page::MainPage;
 
 #[derive(Debug)]
 pub enum FinishState {
@@ -18,6 +20,7 @@ pub struct FinishPage {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FinishPageMessage {
     Exit,
+    Retry,
 }
 
 impl FinishPage {
@@ -29,11 +32,14 @@ impl FinishPage {
 impl Page for FinishPage {
     fn update(&mut self, message: AppMessage) -> (Option<Box<(dyn Page)>>, iced::Task<AppMessage>) {
         let mut command: iced::Task<AppMessage> = iced::Task::none();
-        let page: Option<Box<dyn Page>> = None;
+        let mut page: Option<Box<dyn Page>> = None;
         if let AppMessage::Finish(msg) = message {
             match msg {
                 FinishPageMessage::Exit => {
                     command = window::oldest().then(|id| window::close(id.unwrap()));
+                }
+                FinishPageMessage::Retry => {
+                    page = Some(Box::new(MainPage::new()));
                 }
             }
         }
@@ -53,15 +59,22 @@ impl Page for FinishPage {
             println!("{e:#}");
             col = col.push(text(e.to_string()));
         };
-        container(
-            col.push(button("Exit").on_press(AppMessage::Finish(FinishPageMessage::Exit)))
-                .spacing(16),
-        )
-        .align_x(iced::alignment::Horizontal::Center)
-        .align_y(iced::alignment::Vertical::Center)
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .into()
+        let mut row1 = row![].spacing(16);
+        match self.state {
+            FinishState::Clean => todo!(),
+            FinishState::Error(_) | FinishState::Cancelled => {
+                row1 = row1
+                    .push(button("Retry").on_press(AppMessage::Finish(FinishPageMessage::Retry)))
+            }
+        }
+        row1 = row1.push(button("Exit").on_press(AppMessage::Finish(FinishPageMessage::Exit)));
+        col = col.push(row1);
+        container(col.spacing(16))
+            .align_x(iced::alignment::Horizontal::Center)
+            .align_y(iced::alignment::Vertical::Center)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
     }
 
     fn subscription(&self) -> iced::Subscription<AppMessage> {
