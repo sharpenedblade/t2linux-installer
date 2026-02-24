@@ -3,7 +3,7 @@ use futures::StreamExt;
 use iced::task::{Straw, sipper};
 use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncWriteExt, BufWriter};
 use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize, Hash)]
@@ -41,12 +41,13 @@ impl Distro {
         sipper(async move |mut sender| {
             let client = reqwest::Client::new();
             fs::remove_file(&iso_path).ok();
-            let mut iso_file = tokio::fs::OpenOptions::new()
+            let iso_file = tokio::fs::OpenOptions::new()
                 .append(true)
                 .create(true)
                 .open(&iso_path)
                 .await
                 .with_context(|| format!("Could not open ISO file: {}", &iso_path.display()))?;
+            let mut iso_file_buf = BufWriter::new(iso_file);
             for (part, url) in s.iso.iter().enumerate() {
                 let request = client
                     .get(url)
@@ -60,7 +61,7 @@ impl Distro {
                     if ct.is_cancelled() {
                         return Err(anyhow!("Download cancelled"));
                     };
-                    iso_file.write_all(&data).await.with_context(|| {
+                    iso_file_buf.write_all(&data).await.with_context(|| {
                         format!("Failed to write to file: {}", iso_path.display())
                     })?;
                     current_len += data.len() as u64;
@@ -72,6 +73,7 @@ impl Distro {
                         sender.send((part + 1, 0.0)).await;
                     }
                 }
+                iso_file_buf.flush().await?;
             }
             if let Some(compression_algo) = &s.iso_compression {
                 let decompressed_path = {
