@@ -71,7 +71,10 @@ impl Distro {
                     }
                 }
             }
-            Ok(fs::OpenOptions::new().read(true).open("download.iso")?)
+            fs::OpenOptions::new()
+                .read(true)
+                .open(&iso_path)
+                .with_context(|| format!("Failed to open output ISO file: {}", iso_path.display()))
         })
     }
 }
