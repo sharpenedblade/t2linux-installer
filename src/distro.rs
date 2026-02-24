@@ -2,7 +2,8 @@ use anyhow::{Context, Result, anyhow};
 use futures::StreamExt;
 use iced::task::{Straw, sipper};
 use serde::{Deserialize, Serialize};
-use std::{fs, io::Write, path::PathBuf};
+use std::{fs, path::PathBuf};
+use tokio::io::AsyncWriteExt;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize, Hash)]
@@ -40,10 +41,11 @@ impl Distro {
         sipper(async move |mut sender| {
             let client = reqwest::Client::new();
             fs::remove_file(&iso_path).ok();
-            let mut iso_file = fs::OpenOptions::new()
+            let mut iso_file = tokio::fs::OpenOptions::new()
                 .append(true)
                 .create(true)
                 .open(&iso_path)
+                .await
                 .with_context(|| format!("Could not open ISO file: {}", &iso_path.display()))?;
             for (part, url) in s.iso.iter().enumerate() {
                 let request = client
@@ -58,7 +60,7 @@ impl Distro {
                     if ct.is_cancelled() {
                         return Err(anyhow!("Download cancelled"));
                     };
-                    iso_file.write_all(&data).with_context(|| {
+                    iso_file.write_all(&data).await.with_context(|| {
                         format!("Failed to write to file: {}", iso_path.display())
                     })?;
                     current_len += data.len() as u64;
@@ -72,18 +74,82 @@ impl Distro {
                 }
             }
             if let Some(compression_algo) = &s.iso_compression {
+                let decompressed_path = {
+                    let mut decompressed_name = iso_path
+                        .components()
+                        .next_back()
+                        .with_context(|| {
+                            format!(
+                                "Couldn't parse ISO filename from path: {}",
+                                iso_path.display()
+                            )
+                        })?
+                        .as_os_str()
+                        .to_owned();
+                    decompressed_name.push(".extract-tmp");
+                    let mut decompressed_path = iso_path
+                        .parent()
+                        .with_context(|| {
+                            format!("Couldn't parse ISO dir from path: {}", iso_path.display())
+                        })?
+                        .to_owned();
+                    decompressed_path.push(&decompressed_name);
+                    decompressed_path
+                };
                 match compression_algo {
                     CompressionAlgorithim::Zip => {
-                        let mut archive = zip::ZipArchive::new(iso_file.try_clone().unwrap())
-                            .with_context(|| {
-                                format!("Failed to open ISO to decompress: {}", iso_path.display())
-                            })?;
-                        let mut decompressed_file = archive.by_index(0)?;
-                        std::io::copy(&mut decompressed_file, &mut iso_file).with_context(
-                            || format!("Failed to decompress ISO to file: {}", iso_path.display()),
-                        )?;
+                        let iso_path = iso_path.clone();
+                        let decompressed_path = decompressed_path.clone();
+                        tokio::task::spawn_blocking(move || -> Result<()> {
+                            let mut decompressed_file = fs::OpenOptions::new()
+                                .create_new(true)
+                                .write(true)
+                                .open(&decompressed_path)
+                                .with_context(|| {
+                                    format!(
+                                        "Failed to open temp file for decompressing: {}",
+                                        decompressed_path.display()
+                                    )
+                                })?;
+                            let downloaded_file = fs::OpenOptions::new()
+                                .read(true)
+                                .open(&iso_path)
+                                .with_context(|| {
+                                    format!(
+                                        "Failed to open download to decompress: {}",
+                                        iso_path.display()
+                                    )
+                                })?;
+                            let mut archive =
+                                zip::ZipArchive::new(downloaded_file.try_clone().unwrap())
+                                    .with_context(|| {
+                                        format!("Failed to open zip: {}", iso_path.display())
+                                    })?;
+                            let mut zip_handle = archive.by_index(0)?;
+                            std::io::copy(&mut zip_handle, &mut decompressed_file).with_context(
+                                || {
+                                    format!(
+                                        "Failed to decompress ISO to file: {}",
+                                        iso_path.display()
+                                    )
+                                },
+                            )?;
+                            Ok(())
+                        })
+                        .await
+                        .unwrap()?;
                     }
                 }
+                let _iso_path = iso_path.clone();
+                let _decompressed_path = decompressed_path.clone();
+                tokio::task::spawn_blocking(move || -> Result<()> {
+                    std::fs::rename(_decompressed_path, &_iso_path).with_context(|| {
+                        format!("Failed to move decompressed ISO to {}", _iso_path.display())
+                    })?;
+                    Ok(())
+                })
+                .await
+                .unwrap()?;
             }
             fs::OpenOptions::new()
                 .read(true)
