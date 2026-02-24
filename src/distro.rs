@@ -2,6 +2,7 @@ use anyhow::{Context, Result, anyhow};
 use futures::StreamExt;
 use iced::task::{Straw, sipper};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::{fs, path::PathBuf};
 use tokio::io::{AsyncWriteExt, BufWriter};
 use tokio_util::sync::CancellationToken;
@@ -11,6 +12,7 @@ pub struct Distro {
     pub name: String,
     iso_compression: Option<CompressionAlgorithim>,
     pub iso: Vec<String>,
+    sha256: Option<String>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize, Hash)]
@@ -38,6 +40,7 @@ impl Distro {
         ct: CancellationToken,
     ) -> impl Straw<fs::File, (usize, f64), anyhow::Error> {
         let s = self.clone();
+        let mut hasher = Sha256::new();
         sipper(async move |mut sender| {
             let client = reqwest::Client::new();
             fs::remove_file(&iso_path).ok();
@@ -64,6 +67,7 @@ impl Distro {
                     iso_file_buf.write_all(&data).await.with_context(|| {
                         format!("Failed to write to file: {}", iso_path.display())
                     })?;
+                    hasher.update(&data);
                     current_len += data.len() as u64;
                     if let Some(total_len) = total_len {
                         sender
@@ -152,6 +156,13 @@ impl Distro {
                 })
                 .await
                 .unwrap()?;
+            }
+            let sha256sum = hasher.finalize();
+            if let Some(orig_sum) = s.sha256 {
+                let orig_sum = hex::decode(orig_sum).context("Could not decode checksum")?;
+                if sha256sum.as_slice() != orig_sum {
+                    return Err(anyhow!("Checksums do not match"));
+                }
             }
             fs::OpenOptions::new()
                 .read(true)
