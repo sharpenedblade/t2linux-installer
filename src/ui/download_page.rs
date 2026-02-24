@@ -1,6 +1,7 @@
 use crate::install::{InstallProgress, InstallSettings};
 use crate::ui::app::{AppMessage, Page};
 use crate::ui::finish_page;
+use anyhow::anyhow;
 use futures::StreamExt;
 use iced::Length;
 use iced::alignment::Vertical;
@@ -49,11 +50,11 @@ impl Page for DownloadPage {
                 DownloadPageMessage::Finished => {
                     page = Some(Box::new(finish_page::FinishPage::new(FinishState::Clean)))
                 }
-                DownloadPageMessage::Failed(_) => {
+                DownloadPageMessage::Failed(e) => {
                     let state = if self.ct.is_cancelled() {
                         FinishState::Cancelled
                     } else {
-                        FinishState::Error
+                        FinishState::Error(anyhow!(e))
                     };
                     page = Some(Box::new(finish_page::FinishPage::new(state)))
                 }
@@ -115,7 +116,8 @@ impl DownloadSubState {
             }
             InstallProgress::Finished => AppMessage::Download(DownloadPageMessage::Finished),
             InstallProgress::Failed(err) => {
-                AppMessage::Download(DownloadPageMessage::Failed(err.to_string()))
+                println!("{err:#}");
+                AppMessage::Download(DownloadPageMessage::Failed(format!("{err:#}")))
             }
         })
     }

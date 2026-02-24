@@ -51,17 +51,20 @@ impl InstallSettings {
                         .try_send(InstallProgress::IsoDownloadProgress(progress))
                         .unwrap();
                 }
-                let Ok(iso) = download.await else {
-                    sender
-                        .try_send(InstallProgress::Failed(
-                            if state.ct.clone().is_cancelled() {
-                                Error::Cancelled
-                            } else {
-                                Error::IsoDownload
-                            },
-                        ))
-                        .unwrap();
-                    return;
+                let iso = match download.await {
+                    Ok(iso) => iso,
+                    Err(e) => {
+                        sender
+                            .try_send(InstallProgress::Failed(
+                                if state.ct.clone().is_cancelled() {
+                                    Error::Cancelled
+                                } else {
+                                    Error::IsoDownload(e)
+                                },
+                            ))
+                            .unwrap();
+                        return;
+                    }
                 };
                 state.iso_file = Some(iso);
                 sender.try_send(InstallProgress::Finished).unwrap();
