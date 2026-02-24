@@ -66,10 +66,10 @@ impl Distro {
                     current_len += data.len() as u64;
                     if let Some(total_len) = total_len {
                         sender
-                            .send((part, (current_len as f64) / (total_len as f64)))
+                            .send((part + 1, (current_len as f64) / (total_len as f64)))
                             .await;
                     } else {
-                        sender.send((part, 0.0)).await;
+                        sender.send((part + 1, 0.0)).await;
                     }
                 }
             }

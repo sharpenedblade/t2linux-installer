@@ -61,7 +61,7 @@ impl Page for FinishPage {
         };
         let mut row1 = row![].spacing(16);
         match self.state {
-            FinishState::Clean => todo!(),
+            FinishState::Clean => {}
             FinishState::Error(_) | FinishState::Cancelled => {
                 row1 = row1
                     .push(button("Retry").on_press(AppMessage::Finish(FinishPageMessage::Retry)))
