@@ -9,7 +9,7 @@ use tokio_util::sync::CancellationToken;
 pub struct Distro {
     pub name: String,
     iso_compression: Option<CompressionAlgorithim>,
-    iso: Vec<String>,
+    pub iso: Vec<String>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize, Hash)]
@@ -35,7 +35,7 @@ impl Distro {
         &self,
         iso_path: PathBuf,
         ct: CancellationToken,
-    ) -> impl Straw<fs::File, f64, anyhow::Error> {
+    ) -> impl Straw<fs::File, (usize, f64), anyhow::Error> {
         let s = self.clone();
         sipper(async move |mut sender| {
             let client = reqwest::Client::new();
@@ -45,7 +45,7 @@ impl Distro {
                 .create(true)
                 .open(&iso_path)
                 .with_context(|| format!("Could not open ISO file: {}", &iso_path.display()))?;
-            for url in &s.iso {
+            for (part, url) in s.iso.iter().enumerate() {
                 let request = client
                     .get(url)
                     .send()
@@ -63,9 +63,11 @@ impl Distro {
                     })?;
                     current_len += data.len() as u64;
                     if let Some(total_len) = total_len {
-                        sender.send((current_len as f64) / (total_len as f64)).await;
+                        sender
+                            .send((part, (current_len as f64) / (total_len as f64)))
+                            .await;
                     } else {
-                        sender.send(0.0).await;
+                        sender.send((part, 0.0)).await;
                     }
                 }
             }

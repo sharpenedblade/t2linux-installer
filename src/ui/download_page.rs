@@ -15,13 +15,17 @@ use super::finish_page::FinishState;
 pub struct DownloadPage {
     settings: InstallSettings,
     progress: f64,
+    total_parts: Option<usize>,
+    current_parts: Option<usize>,
     ct: CancellationToken,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum DownloadPageMessage {
-    StartedIsoDownload,
-    DownloadProgress(f64),
+    /// total parts
+    StartedIsoDownload(usize),
+    /// (part, progress)
+    DownloadProgress(usize, f64),
     Finished,
     Failed(String),
     Cancel,
@@ -30,6 +34,8 @@ pub enum DownloadPageMessage {
 impl DownloadPage {
     pub fn new(settings: InstallSettings) -> Self {
         Self {
+            total_parts: None,
+            current_parts: None,
             progress: 0.0,
             settings,
             ct: CancellationToken::new(),
@@ -43,7 +49,7 @@ impl Page for DownloadPage {
         let mut page: Option<Box<dyn Page>> = None;
         if let AppMessage::Download(msg) = message {
             match msg {
-                DownloadPageMessage::StartedIsoDownload => {}
+                DownloadPageMessage::StartedIsoDownload(parts) => self.total_parts = Some(parts),
                 DownloadPageMessage::Cancel => {
                     self.ct.cancel();
                 }
@@ -58,31 +64,42 @@ impl Page for DownloadPage {
                     };
                     page = Some(Box::new(finish_page::FinishPage::new(state)))
                 }
-                DownloadPageMessage::DownloadProgress(progress) => self.progress = progress,
+                DownloadPageMessage::DownloadProgress(part, progress) => {
+                    self.current_parts = Some(part);
+                    self.progress = progress
+                }
             }
         }
         (page, command)
     }
     fn view(&self) -> iced::Element<AppMessage> {
-        container(
-            column![
-                text("Downloading ISO").size(24),
-                row![
-                    text(format!("{:.2}%", self.progress * 100.0)),
-                    progress_bar(0.0..=100.0, self.progress as f32 * 100.0),
-                ]
-                .width(400)
-                .spacing(16)
-                .align_y(Vertical::Center),
-                button("Cancel").on_press(AppMessage::Download(DownloadPageMessage::Cancel))
+        let mut row1 = row![text("Downloading ISO").size(24)]
+            .spacing(16)
+            .align_y(Vertical::Center);
+        if let Some(total_parts) = self.total_parts
+            && total_parts > 1
+            && let Some(current_parts) = self.current_parts
+        {
+            row1 = row1.push(text(format!("Part {current_parts} of {total_parts}")))
+        }
+        let mut col = column![row1,].spacing(16);
+        col = col.push(
+            row![
+                text(format!("{:.2}%", self.progress * 100.0)),
+                progress_bar(0.0..=100.0, self.progress as f32 * 100.0),
             ]
-            .spacing(16),
-        )
-        .align_x(iced::alignment::Horizontal::Center)
-        .align_y(iced::alignment::Vertical::Center)
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .into()
+            .width(400)
+            .spacing(16)
+            .align_y(Vertical::Center),
+        );
+        col =
+            col.push(button("Cancel").on_press(AppMessage::Download(DownloadPageMessage::Cancel)));
+        container(col)
+            .align_x(iced::alignment::Horizontal::Center)
+            .align_y(iced::alignment::Vertical::Center)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
     }
 
     fn subscription(&self) -> iced::Subscription<AppMessage> {
@@ -108,11 +125,11 @@ impl Hash for DownloadSubState {
 impl DownloadSubState {
     fn subscription_task(&self) -> impl futures::Stream<Item = AppMessage> + use<> {
         self.settings.install(self.ct.clone()).map(|msg| match msg {
-            InstallProgress::IsoDownloadStart => {
-                AppMessage::Download(DownloadPageMessage::StartedIsoDownload)
+            InstallProgress::IsoDownloadStart(parts) => {
+                AppMessage::Download(DownloadPageMessage::StartedIsoDownload(parts))
             }
-            InstallProgress::IsoDownloadProgress(progress) => {
-                AppMessage::Download(DownloadPageMessage::DownloadProgress(progress))
+            InstallProgress::IsoDownloadProgress(part, progress) => {
+                AppMessage::Download(DownloadPageMessage::DownloadProgress(part, progress))
             }
             InstallProgress::Finished => AppMessage::Download(DownloadPageMessage::Finished),
             InstallProgress::Failed(err) => {

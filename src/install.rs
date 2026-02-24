@@ -7,8 +7,10 @@ use tokio_util::sync::CancellationToken;
 
 #[derive(Debug)]
 pub enum InstallProgress {
-    IsoDownloadStart,
-    IsoDownloadProgress(f64),
+    /// Part
+    IsoDownloadStart(usize),
+    /// Part, Progress
+    IsoDownloadProgress(usize, f64),
     Finished,
     Failed(Error),
 }
@@ -40,15 +42,19 @@ impl InstallSettings {
         channel(
             10,
             async move |mut sender: futures_channel::mpsc::Sender<InstallProgress>| {
-                sender.try_send(InstallProgress::IsoDownloadStart).unwrap();
+                sender
+                    .try_send(InstallProgress::IsoDownloadStart(
+                        state.settings.distro.iso.len(),
+                    ))
+                    .unwrap();
                 let mut download = state
                     .settings
                     .distro
                     .download_iso(state.settings.iso_path.clone(), state.ct.clone())
                     .pin();
-                while let Some(progress) = download.sip().await {
+                while let Some((part, progress)) = download.sip().await {
                     sender
-                        .try_send(InstallProgress::IsoDownloadProgress(progress))
+                        .try_send(InstallProgress::IsoDownloadProgress(part, progress))
                         .unwrap();
                 }
                 let iso = match download.await {
