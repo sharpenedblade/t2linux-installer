@@ -2,7 +2,7 @@ use crate::distro::Distro;
 use crate::error::Error;
 use futures::Stream;
 use iced::{stream::channel, task::Sipper};
-use std::{fs, path::PathBuf};
+use std::path::PathBuf;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Debug)]
@@ -18,7 +18,6 @@ pub enum InstallProgress {
 #[derive(Debug)]
 struct Installer {
     settings: InstallSettings,
-    iso_file: Option<fs::File>,
     ct: CancellationToken,
 }
 
@@ -34,11 +33,7 @@ impl InstallSettings {
     }
     pub fn install(&self, ct: CancellationToken) -> impl Stream<Item = InstallProgress> + use<> {
         let settings = self.clone();
-        let mut state = Installer {
-            settings,
-            iso_file: None,
-            ct,
-        };
+        let state = Installer { settings, ct };
         channel(
             10,
             async move |mut sender: futures_channel::mpsc::Sender<InstallProgress>| {
@@ -57,7 +52,7 @@ impl InstallSettings {
                         .try_send(InstallProgress::IsoDownloadProgress(part, progress))
                         .unwrap();
                 }
-                let iso = match download.await {
+                match download.await {
                     Ok(iso) => iso,
                     Err(e) => {
                         sender
@@ -72,7 +67,6 @@ impl InstallSettings {
                         return;
                     }
                 };
-                state.iso_file = Some(iso);
                 sender.try_send(InstallProgress::Finished).unwrap();
             },
         )

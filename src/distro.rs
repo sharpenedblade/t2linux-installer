@@ -3,7 +3,7 @@ use futures::StreamExt;
 use iced::task::{Straw, sipper};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::{fs, path::PathBuf};
+use std::path::PathBuf;
 use tokio::io::{AsyncWriteExt, BufWriter};
 use tokio_util::sync::CancellationToken;
 
@@ -38,15 +38,18 @@ impl Distro {
         &self,
         iso_path: PathBuf,
         ct: CancellationToken,
-    ) -> impl Straw<fs::File, (usize, f64), anyhow::Error> {
+    ) -> impl Straw<(), (usize, f64), anyhow::Error> {
         let s = self.clone();
         let mut hasher = Sha256::new();
         sipper(async move |mut sender| {
+            if s.iso_compression.is_some() {
+                return Err(anyhow!("Compression is unimplemented"));
+            };
             let client = reqwest::Client::new();
-            fs::remove_file(&iso_path).ok();
             let iso_file = tokio::fs::OpenOptions::new()
-                .append(true)
+                .truncate(true)
                 .create(true)
+                .write(true)
                 .open(&iso_path)
                 .await
                 .with_context(|| format!("Could not open ISO file: {}", &iso_path.display()))?;
@@ -79,95 +82,14 @@ impl Distro {
                 }
                 iso_file_buf.flush().await?;
             }
-            if let Some(compression_algo) = &s.iso_compression {
-                let decompressed_path = {
-                    let mut decompressed_name = iso_path
-                        .components()
-                        .next_back()
-                        .with_context(|| {
-                            format!(
-                                "Couldn't parse ISO filename from path: {}",
-                                iso_path.display()
-                            )
-                        })?
-                        .as_os_str()
-                        .to_owned();
-                    decompressed_name.push(".extract-tmp");
-                    let mut decompressed_path = iso_path
-                        .parent()
-                        .with_context(|| {
-                            format!("Couldn't parse ISO dir from path: {}", iso_path.display())
-                        })?
-                        .to_owned();
-                    decompressed_path.push(&decompressed_name);
-                    decompressed_path
-                };
-                match compression_algo {
-                    CompressionAlgorithim::Zip => {
-                        let iso_path = iso_path.clone();
-                        let decompressed_path = decompressed_path.clone();
-                        tokio::task::spawn_blocking(move || -> Result<()> {
-                            let mut decompressed_file = fs::OpenOptions::new()
-                                .create_new(true)
-                                .write(true)
-                                .open(&decompressed_path)
-                                .with_context(|| {
-                                    format!(
-                                        "Failed to open temp file for decompressing: {}",
-                                        decompressed_path.display()
-                                    )
-                                })?;
-                            let downloaded_file = fs::OpenOptions::new()
-                                .read(true)
-                                .open(&iso_path)
-                                .with_context(|| {
-                                    format!(
-                                        "Failed to open download to decompress: {}",
-                                        iso_path.display()
-                                    )
-                                })?;
-                            let mut archive =
-                                zip::ZipArchive::new(downloaded_file.try_clone().unwrap())
-                                    .with_context(|| {
-                                        format!("Failed to open zip: {}", iso_path.display())
-                                    })?;
-                            let mut zip_handle = archive.by_index(0)?;
-                            std::io::copy(&mut zip_handle, &mut decompressed_file).with_context(
-                                || {
-                                    format!(
-                                        "Failed to decompress ISO to file: {}",
-                                        iso_path.display()
-                                    )
-                                },
-                            )?;
-                            Ok(())
-                        })
-                        .await
-                        .unwrap()?;
-                    }
-                }
-                let _iso_path = iso_path.clone();
-                let _decompressed_path = decompressed_path.clone();
-                tokio::task::spawn_blocking(move || -> Result<()> {
-                    std::fs::rename(_decompressed_path, &_iso_path).with_context(|| {
-                        format!("Failed to move decompressed ISO to {}", _iso_path.display())
-                    })?;
-                    Ok(())
-                })
-                .await
-                .unwrap()?;
-            }
             let sha256sum = hasher.finalize();
             if let Some(orig_sum) = s.sha256 {
                 let orig_sum = hex::decode(orig_sum).context("Could not decode checksum")?;
                 if sha256sum.as_slice() != orig_sum {
                     return Err(anyhow!("Checksums do not match"));
-                }
-            }
-            fs::OpenOptions::new()
-                .read(true)
-                .open(&iso_path)
-                .with_context(|| format!("Failed to open output ISO file: {}", iso_path.display()))
+                };
+            };
+            Ok(())
         })
     }
 }

@@ -1,12 +1,13 @@
-use std::{path::PathBuf, str::FromStr, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 
+use crate::disk::{self, BlockDevice};
 use crate::ui::{
     app::{AppMessage, Page},
     download_page,
 };
 use crate::{distro::Distro, install::InstallSettings};
 use iced::{
-    Color, Length, Task,
+    Length, Task,
     widget::{button, column, container, radio, scrollable, text},
 };
 
@@ -15,7 +16,7 @@ use super::finish_page::FinishPage;
 #[derive(Debug, Clone)]
 pub enum MainPageMessage {
     LoadDistroList(Vec<Distro>),
-    LoadBlockDeviceList(Vec<String>),
+    LoadBlockDeviceList(Vec<BlockDevice>),
     Err(Arc<anyhow::Error>),
     PickDistro(usize),
     OpenTargetPicker,
@@ -32,7 +33,7 @@ enum MainPageState {
 }
 
 #[derive(Clone)]
-enum DownloadTarget {
+pub enum DownloadTarget {
     BlockDev(usize),
     File(PathBuf),
 }
@@ -40,7 +41,7 @@ enum DownloadTarget {
 pub struct MainPage {
     state: MainPageState,
     distro_list: Option<Vec<Distro>>,
-    block_dev_list: Option<Vec<String>>,
+    block_dev_list: Option<Vec<BlockDevice>>,
     distro_index: Option<usize>,
     download_target: Option<DownloadTarget>,
 }
@@ -66,12 +67,17 @@ impl Page for MainPage {
                 MainPageMessage::PickDistro(distro_index) => self.distro_index = Some(distro_index),
                 MainPageMessage::StartInstall => {
                     if let Some(distro_index) = self.distro_index
-                        && let Some(DownloadTarget::File(iso_file)) = self.download_target.clone()
+                        && let Some(download_target) = self.download_target.clone()
                         && let Some(distro_list) = self.distro_list.clone()
+                        && let Some(block_dev_list) = self.block_dev_list.clone()
                     {
+                        let iso_path = match download_target {
+                            DownloadTarget::BlockDev(i) => block_dev_list[i].path.clone(),
+                            DownloadTarget::File(path_buf) => path_buf,
+                        };
                         let install_settings = InstallSettings::new(
                             distro_list.get(distro_index).unwrap().clone(),
-                            iso_file,
+                            iso_path,
                         );
                         page = Some(Box::new(download_page::DownloadPage::new(install_settings)))
                     }
@@ -107,7 +113,7 @@ impl Page for MainPage {
                 MainPageMessage::OpenTargetPicker => {
                     self.state = MainPageState::Target;
                 }
-                MainPageMessage::LoadBlockDeviceList(items) => self.block_dev_list = Some(items),
+                MainPageMessage::LoadBlockDeviceList(l) => self.block_dev_list = Some(l),
             }
         }
         if self.distro_list.is_none() {
@@ -190,7 +196,8 @@ impl MainPage {
         let mut list = column![].spacing(16);
         if let Some(devs) = &self.block_dev_list {
             for (cur_i, dev) in devs.iter().enumerate() {
-                list = list.push(radio(dev.clone(), cur_i, selected_i, |_| {
+                let label = format!("{} ({})", dev.name, dev.size);
+                list = list.push(radio(label, cur_i, selected_i, |_| {
                     AppMessage::Main(MainPageMessage::PickBlockDeviceIndex(cur_i))
                 }));
             }
@@ -221,8 +228,7 @@ fn get_distro_list() -> Task<AppMessage> {
 }
 
 fn get_block_dev_list() -> Task<AppMessage> {
-    Task::future(async { Ok(vec!["sda".to_owned(), "sdb".to_owned()]) }).then(|handle| match handle
-    {
+    Task::future(disk::get_external_disks()).then(|handle| match handle {
         Ok(list) => Task::done(AppMessage::Main(MainPageMessage::LoadBlockDeviceList(list))),
         Err(e) => Task::done(AppMessage::Main(MainPageMessage::Err(Arc::new(e)))),
     })

@@ -345,6 +345,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "blockdev"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "79bbf05d9fb1b7f01c3923d90c828ed7a37f97d8de1bca6e20ce13f3570273b8"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "blocking"
 version = "1.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1462,6 +1473,15 @@ name = "httparse"
 version = "1.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6dbf3de79e51f3d586ab4cb9d5c3e2c14aa28ed23d180cf89b4df0454a69cc87"
+
+[[package]]
+name = "humansize"
+version = "2.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6cb51c9a029ddc91b07a787f1d86b53ccfa49b0e86688c946ebe8d3555685dd7"
+dependencies = [
+ "libm",
+]
 
 [[package]]
 name = "hyper"
@@ -3647,9 +3667,11 @@ name = "t2linux-installer"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "blockdev",
  "futures",
  "futures-channel",
  "hex",
+ "humansize",
  "iced",
  "plist",
  "reqwest",
