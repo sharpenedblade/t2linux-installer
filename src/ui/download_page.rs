@@ -45,7 +45,7 @@ impl DownloadPage {
 }
 
 impl Page for DownloadPage {
-    fn update(&mut self, message: AppMessage) -> (Option<Box<(dyn Page)>>, iced::Task<AppMessage>) {
+    fn update(&mut self, message: AppMessage) -> (Option<Box<dyn Page>>, iced::Task<AppMessage>) {
         let command: iced::Task<AppMessage> = iced::Task::none();
         let mut page: Option<Box<dyn Page>> = None;
         if let AppMessage::Download(msg) = message {
@@ -73,33 +73,46 @@ impl Page for DownloadPage {
         }
         (page, command)
     }
-    fn view(&self) -> iced::Element<AppMessage> {
-        let mut row1 = row![text("Downloading ISO").size(24)]
-            .spacing(16)
+    fn view(&self) -> iced::Element<'_, AppMessage> {
+        let mut status = row![text("Downloading ISO").size(24)]
+            .spacing(12)
             .align_y(Vertical::Center);
         if let Some(total_parts) = self.total_parts
             && total_parts > 1
             && let Some(current_parts) = self.current_parts
         {
-            row1 = row1.push(text(format!("Part {current_parts} of {total_parts}")))
+            status = status.push(text(format!("Part {current_parts}/{total_parts}")));
         }
-        let mut col = column![row1,].spacing(16);
-        col = col.push(
-            row![
-                text(format!("{:.2}%", self.progress * 100.0)).width(50),
-                progress_bar(0.0..=100.0, self.progress as f32 * 100.0),
+
+        let progress_row = row![
+            container(progress_bar(0.0..=100.0, self.progress as f32 * 100.0))
+                .width(Length::FillPortion(4)),
+            text(format!("{:.2}%", self.progress * 100.0)).width(Length::FillPortion(1)),
+        ]
+        .spacing(12)
+        .align_y(Vertical::Center);
+
+        let popup = container(
+            column![
+                status,
+                text("Please keep this window open while downloading."),
+                progress_row,
+                row![button("Cancel").on_press(AppMessage::Download(DownloadPageMessage::Cancel))]
+                    .align_y(Vertical::Center),
             ]
-            .width(400)
-            .spacing(16)
-            .align_y(Vertical::Center),
-        );
-        col =
-            col.push(button("Cancel").on_press(AppMessage::Download(DownloadPageMessage::Cancel)));
-        container(col)
+            .spacing(14),
+        )
+        .padding(20)
+        .max_width(520)
+        .width(Length::Fill)
+        .style(iced::widget::container::rounded_box);
+
+        container(popup)
             .align_x(iced::alignment::Horizontal::Center)
             .align_y(iced::alignment::Vertical::Center)
             .width(Length::Fill)
             .height(Length::Fill)
+            .padding(16)
             .into()
     }
 

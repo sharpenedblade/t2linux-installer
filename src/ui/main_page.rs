@@ -7,8 +7,8 @@ use crate::ui::{
 };
 use crate::{distro::Distro, install::InstallSettings};
 use iced::{
-    Length, Task,
-    widget::{button, column, container, radio, scrollable, text},
+    Length, Size, Task, window,
+    widget::{button, column, container, radio, row, scrollable, text, text_input},
 };
 
 use super::finish_page::FinishPage;
@@ -20,8 +20,9 @@ pub enum MainPageMessage {
     Err(Arc<anyhow::Error>),
     PickDistro(usize),
     OpenTargetPicker,
-    TriggerFilePicker,
-    PickIsoFile(PathBuf),
+    TriggerDirectoryPicker,
+    PickIsoDirectory(PathBuf),
+    SetIsoFileName(String),
     PickBlockDeviceIndex(usize),
     StartInstall,
     Ignore,
@@ -35,7 +36,7 @@ enum MainPageState {
 #[derive(Clone)]
 pub enum DownloadTarget {
     BlockDev(usize),
-    File(PathBuf),
+    Directory(PathBuf),
 }
 
 pub struct MainPage {
@@ -44,16 +45,21 @@ pub struct MainPage {
     block_dev_list: Option<Vec<BlockDevice>>,
     distro_index: Option<usize>,
     download_target: Option<DownloadTarget>,
+    iso_file_name: String,
+    show_distro_warning: bool,
 }
 
 impl MainPage {
     pub fn new() -> Self {
+        let default_download_dir = default_download_dir();
         Self {
             state: MainPageState::Distro,
             distro_list: None,
             block_dev_list: None,
             distro_index: None,
-            download_target: None,
+            download_target: Some(DownloadTarget::Directory(default_download_dir)),
+            iso_file_name: "linux".to_owned(),
+            show_distro_warning: false,
         }
     }
 }
@@ -64,7 +70,18 @@ impl Page for MainPage {
         let mut task = iced::Task::none();
         if let AppMessage::Main(msg) = message {
             match msg {
-                MainPageMessage::PickDistro(distro_index) => self.distro_index = Some(distro_index),
+                MainPageMessage::PickDistro(distro_index) => {
+                    self.distro_index = Some(distro_index);
+                    self.show_distro_warning = false;
+                    if let Some(name) = self
+                        .distro_list
+                        .as_ref()
+                        .and_then(|distros| distros.get(distro_index))
+                        .map(|distro| distro.name.clone())
+                    {
+                        self.iso_file_name = sanitize_iso_name(name);
+                    }
+                }
                 MainPageMessage::StartInstall => {
                     if let Some(distro_index) = self.distro_index
                         && let Some(download_target) = self.download_target.clone()
@@ -73,34 +90,36 @@ impl Page for MainPage {
                     {
                         let iso_path = match download_target {
                             DownloadTarget::BlockDev(i) => block_dev_list[i].path.clone(),
-                            DownloadTarget::File(path_buf) => path_buf,
+                            DownloadTarget::Directory(path_buf) => {
+                                let trimmed = self.iso_file_name.trim();
+                                let name = if trimmed.is_empty() { "download" } else { trimmed };
+                                let filename = if name.to_ascii_lowercase().ends_with(".iso") {
+                                    name.to_owned()
+                                } else {
+                                    format!("{name}.iso")
+                                };
+                                path_buf.join(filename)
+                            }
                         };
                         let install_settings = InstallSettings::new(
                             distro_list.get(distro_index).unwrap().clone(),
                             iso_path,
                         );
-                        page = Some(Box::new(download_page::DownloadPage::new(install_settings)))
+                        page = Some(Box::new(download_page::DownloadPage::new(install_settings)));
+                        task = Task::batch([task, resize_active_window(Size::new(580.0, 260.0))]);
                     }
                 }
-                MainPageMessage::TriggerFilePicker => {
-                    task = open_file(if let Some(i) = self.distro_index {
-                        format!(
-                            "{}.iso",
-                            self.distro_list
-                                .clone()
-                                .and_then(|l| l.get(i).cloned())
-                                .map(|d| d.name.clone())
-                                .unwrap_or("unknown".to_string())
-                        )
-                    } else {
-                        "unknown.iso".to_owned()
-                    });
+                MainPageMessage::TriggerDirectoryPicker => {
+                    task = open_folder(default_download_dir());
                 }
-                MainPageMessage::PickIsoFile(path_buf) => {
-                    self.download_target = Some(DownloadTarget::File(path_buf))
+                MainPageMessage::PickIsoDirectory(path_buf) => {
+                    self.download_target = Some(DownloadTarget::Directory(path_buf))
                 }
                 MainPageMessage::PickBlockDeviceIndex(i) => {
                     self.download_target = Some(DownloadTarget::BlockDev(i))
+                }
+                MainPageMessage::SetIsoFileName(name) => {
+                    self.iso_file_name = sanitize_iso_name(name)
                 }
                 MainPageMessage::Ignore => {}
                 MainPageMessage::LoadDistroList(distros) => self.distro_list = Some(distros),
@@ -111,7 +130,13 @@ impl Page for MainPage {
                     )))
                 }
                 MainPageMessage::OpenTargetPicker => {
-                    self.state = MainPageState::Target;
+                    if self.distro_index.is_some() {
+                        self.state = MainPageState::Target;
+                        self.show_distro_warning = false;
+                    } else {
+                        self.show_distro_warning = true;
+                        task = Task::batch([task, show_distro_warning_dialog()]);
+                    }
                 }
                 MainPageMessage::LoadBlockDeviceList(l) => self.block_dev_list = Some(l),
             }
@@ -121,7 +146,7 @@ impl Page for MainPage {
         }
         (page, task)
     }
-    fn view(&self) -> iced::Element<AppMessage> {
+    fn view(&self) -> iced::Element<'_, AppMessage> {
         let e = match self.state {
             MainPageState::Distro => self.distro_picker_view(),
             MainPageState::Target => self.target_picker_view(),
@@ -131,6 +156,8 @@ impl Page for MainPage {
             .align_y(iced::alignment::Vertical::Center)
             .width(Length::Fill)
             .height(Length::Fill)
+            .padding(16)
+            .max_width(760)
             .into()
     }
 
@@ -153,13 +180,19 @@ impl MainPage {
                     }));
             }
         }
-        column![
+        let mut content = column![
             text("Choose a distro").size(24),
-            scrollable(distro_list).height(400).width(400),
+            scrollable(distro_list)
+                .height(Length::FillPortion(1))
+                .width(Length::Fill),
             button("Next").on_press(AppMessage::Main(MainPageMessage::OpenTargetPicker))
-        ]
-        .spacing(16)
-        .padding(8)
+        ];
+
+        if self.show_distro_warning {
+            content = content.push(row![text("⚠"), text("Please choose a distro")].spacing(8));
+        }
+
+        content.spacing(16).padding(8).width(Length::Fill)
     }
     fn target_picker_view(&self) -> iced::widget::Column<'_, AppMessage> {
         column![
@@ -175,17 +208,21 @@ impl MainPage {
         .padding(8)
     }
     fn file_path_view(&self) -> iced::widget::Container<'_, AppMessage> {
-        let mut col = column![text("Download to a file").size(24),];
-        if let Some(DownloadTarget::File(path)) = &self.download_target {
+        let mut col = column![text("Download to a folder").size(24),];
+        if let Some(DownloadTarget::Directory(path)) = &self.download_target {
             col = col.push(text(format!("{}", path.display())));
         } else {
-            col = col.push(text("No download path selected"))
+            col = col.push(text("No download folder selected"))
         }
         col = col.push(
-            button("Choose file path ")
-                .on_press(AppMessage::Main(MainPageMessage::TriggerFilePicker)),
+            text_input("ISO name", &self.iso_file_name)
+                .on_input(|name| AppMessage::Main(MainPageMessage::SetIsoFileName(name))),
         );
-        container(col.spacing(16)).width(350)
+        col = col.push(
+            button("Choose folder")
+                .on_press(AppMessage::Main(MainPageMessage::TriggerDirectoryPicker)),
+        );
+        container(col.spacing(16)).width(Length::Fill)
     }
     fn block_dev_view(&self) -> iced::widget::Container<'_, AppMessage> {
         let selected_i = if let Some(DownloadTarget::BlockDev(n)) = self.download_target {
@@ -195,29 +232,75 @@ impl MainPage {
         };
         let mut list = column![].spacing(16);
         if let Some(devs) = &self.block_dev_list {
+            if devs.is_empty() {
+                list = list.push(text("No removable device found"));
+            }
             for (cur_i, dev) in devs.iter().enumerate() {
                 let label = format!("{} ({})", dev.name, dev.size);
                 list = list.push(radio(label, cur_i, selected_i, |_| {
                     AppMessage::Main(MainPageMessage::PickBlockDeviceIndex(cur_i))
                 }));
             }
+        } else {
+            list = list.push(text("No removable device found"));
         }
-        container(column![text("Flash to a disk").size(24), list,].spacing(16)).width(350)
+        container(
+            column![
+                text("Flash to a disk").size(24),
+                scrollable(list)
+                    .height(Length::FillPortion(1))
+                    .width(Length::Fill),
+            ]
+            .spacing(16),
+        )
+        .width(Length::Fill)
     }
 }
 
-fn open_file(name: String) -> Task<AppMessage> {
+fn open_folder(default_dir: PathBuf) -> Task<AppMessage> {
     Task::future(
         rfd::AsyncFileDialog::new()
-            .add_filter("ISO files", &["iso"])
-            .set_file_name(name)
-            .save_file(),
+            .set_directory(default_dir)
+            .pick_folder(),
     )
     .then(|handle| match handle {
-        Some(file_handle) => Task::done(AppMessage::Main(MainPageMessage::PickIsoFile(
+        Some(file_handle) => Task::done(AppMessage::Main(MainPageMessage::PickIsoDirectory(
             file_handle.into(),
         ))),
         None => Task::done(AppMessage::Main(MainPageMessage::Ignore)),
+    })
+}
+
+fn show_distro_warning_dialog() -> Task<AppMessage> {
+    Task::future(
+        rfd::AsyncMessageDialog::new()
+            .set_title("Missing distro")
+            .set_description("Please choose a distro")
+            .set_level(rfd::MessageLevel::Warning)
+            .show(),
+    )
+    .then(|_| Task::done(AppMessage::Main(MainPageMessage::Ignore)))
+}
+
+fn sanitize_iso_name(name: String) -> String {
+    name.chars().filter(|c| !c.is_whitespace()).collect()
+}
+
+fn default_download_dir() -> PathBuf {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
+        .map(|home| home.join("Downloads"))
+        .unwrap_or_else(|| PathBuf::from("Downloads"))
+}
+
+fn resize_active_window(size: Size) -> Task<AppMessage> {
+    window::oldest().then(move |id| {
+        if let Some(id) = id {
+            window::resize(id, size)
+        } else {
+            Task::none()
+        }
     })
 }
 fn get_distro_list() -> Task<AppMessage> {

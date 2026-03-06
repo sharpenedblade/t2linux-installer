@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::ui::app::{AppMessage, Page};
-use iced::Length;
+use iced::{Length, Size};
 use iced::widget::{button, column, container, row, text};
 use iced::window::{self};
 
@@ -32,7 +32,7 @@ impl FinishPage {
 }
 
 impl Page for FinishPage {
-    fn update(&mut self, message: AppMessage) -> (Option<Box<(dyn Page)>>, iced::Task<AppMessage>) {
+    fn update(&mut self, message: AppMessage) -> (Option<Box<dyn Page>>, iced::Task<AppMessage>) {
         let mut command: iced::Task<AppMessage> = iced::Task::none();
         let mut page: Option<Box<dyn Page>> = None;
         if let AppMessage::Finish(msg) = message {
@@ -42,13 +42,22 @@ impl Page for FinishPage {
                 }
                 FinishPageMessage::Retry => {
                     page = Some(Box::new(MainPage::new()));
-                    command = MainPage::init_tasks();
+                    command = iced::Task::batch([
+                        MainPage::init_tasks(),
+                        window::oldest().then(|id| {
+                            if let Some(id) = id {
+                                window::resize(id, Size::new(820.0, 560.0))
+                            } else {
+                                iced::Task::none()
+                            }
+                        }),
+                    ]);
                 }
             }
         }
         (page, command)
     }
-    fn view(&self) -> iced::Element<AppMessage> {
+    fn view(&self) -> iced::Element<'_, AppMessage> {
         let mut col = column![
             text(match self.state {
                 FinishState::Clean => "Finished Download",

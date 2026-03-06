@@ -2,6 +2,7 @@ use crate::distro::Distro;
 use crate::error::Error;
 use futures::Stream;
 use iced::{stream::channel, task::Sipper};
+use std::io::ErrorKind;
 use std::path::PathBuf;
 use tokio_util::sync::CancellationToken;
 
@@ -42,6 +43,17 @@ impl InstallSettings {
                         state.settings.distro.iso.len(),
                     ))
                     .unwrap();
+
+                if should_replace_iso(&state.settings.iso_path)
+                    && let Err(e) = tokio::fs::remove_file(&state.settings.iso_path).await
+                    && e.kind() != ErrorKind::NotFound
+                {
+                    sender
+                        .try_send(InstallProgress::Failed(Error::FileWrite(e)))
+                        .unwrap();
+                    return;
+                }
+
                 let mut download = state
                     .settings
                     .distro
@@ -71,4 +83,11 @@ impl InstallSettings {
             },
         )
     }
+}
+
+fn should_replace_iso(path: &PathBuf) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.eq_ignore_ascii_case("iso"))
+        .unwrap_or(false)
 }
