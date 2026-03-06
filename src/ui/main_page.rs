@@ -59,7 +59,7 @@ impl MainPage {
             block_dev_list: None,
             distro_index: None,
             download_target: Some(DownloadTarget::Directory(default_download_dir)),
-            iso_file_name: "linux".to_owned(),
+            iso_file_name: "linux-T2".to_owned(),
             show_distro_warning: false,
         }
     }
@@ -80,7 +80,7 @@ impl Page for MainPage {
                         .and_then(|distros| distros.get(distro_index))
                         .map(|distro| distro.name.clone())
                     {
-                        self.iso_file_name = sanitize_iso_name(name);
+                        self.iso_file_name = ensure_t2_suffix(sanitize_iso_name(name));
                     }
                 }
                 MainPageMessage::StartInstall => {
@@ -323,6 +323,18 @@ fn show_defaulting_dialog(path: PathBuf) -> Task<AppMessage> {
 
 fn sanitize_iso_name(name: String) -> String {
     name.chars().filter(|c| !c.is_whitespace()).collect()
+}
+
+fn ensure_t2_suffix(name: String) -> String {
+    let base_name = name
+        .strip_suffix(".iso")
+        .or_else(|| name.strip_suffix(".ISO"))
+        .unwrap_or(name.as_str());
+    if base_name.to_ascii_lowercase().ends_with("-t2") {
+        base_name.to_owned()
+    } else {
+        format!("{base_name}-T2")
+    }
 }
 
 fn default_download_dir() -> PathBuf {
