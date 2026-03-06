@@ -120,7 +120,16 @@ impl Page for MainPage {
                     task = open_folder(default_download_dir());
                 }
                 MainPageMessage::PickIsoDirectory(path_buf) => {
-                    self.download_target = Some(DownloadTarget::Directory(path_buf));
+                    if path_buf.is_dir() {
+                        self.download_target = Some(DownloadTarget::Directory(path_buf));
+                    } else {
+                        let fallback_dir = path_buf
+                            .parent()
+                            .map(PathBuf::from)
+                            .unwrap_or_else(default_download_dir);
+                        self.download_target = Some(DownloadTarget::Directory(fallback_dir));
+                        task = Task::batch([task, show_defaulting_dialog(path_buf)]);
+                    }
                 }
                 MainPageMessage::PickBlockDeviceIndex(i) => {
                     self.download_target = Some(DownloadTarget::BlockDev(i))
@@ -294,6 +303,18 @@ fn show_distro_warning_dialog() -> Task<AppMessage> {
         rfd::AsyncMessageDialog::new()
             .set_title("Missing distro")
             .set_description("Please choose a distro")
+            .set_level(rfd::MessageLevel::Warning)
+            .show(),
+    )
+    .then(|_| Task::done(AppMessage::Main(MainPageMessage::Ignore)))
+}
+
+fn show_defaulting_dialog(path: PathBuf) -> Task<AppMessage> {
+    let message = format!("Defaulting to {}. Ok?", path.display());
+    Task::future(
+        rfd::AsyncMessageDialog::new()
+            .set_title("Invalid selection")
+            .set_description(&message)
             .set_level(rfd::MessageLevel::Warning)
             .show(),
     )
