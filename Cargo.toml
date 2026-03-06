@@ -1,6 +1,6 @@
 [package]
 name = "t2linux-installer"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "Installation helper for linux on t2 macs."
 
@@ -29,7 +29,7 @@ zip = "2.1.3"
 [package.metadata.bundle]
 name = "t2linuxInstaller"
 identifier = "org.t2linux.installer"
-version = "0.1.0"
+version = "0.2.0"
 short_description = "Installation helper for linux on t2 macs."
 long_description = """
 A simple GUI app to help install linux on t2 macs. Supports downloading and flashing ISOs to external disks. This also supports shrinking the macOS partition to create free space.
