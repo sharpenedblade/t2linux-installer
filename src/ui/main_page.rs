@@ -211,8 +211,8 @@ impl MainPage {
     }
     fn target_picker_view(&self) -> iced::widget::Column<'_, AppMessage> {
         column![
-            self.file_path_view(),
-            self.block_dev_view(),
+            scrollable(column![self.file_path_view(), self.block_dev_view(),].spacing(24))
+                .height(Length::Fill),
             row![
                 button("Back").on_press(AppMessage::Main(MainPageMessage::BackToDistro)),
                 button("Begin Download").on_press_maybe(if self.download_target.is_some() {
@@ -223,8 +223,9 @@ impl MainPage {
             ]
             .spacing(12)
         ]
-        .spacing(32)
+        .spacing(20)
         .padding(8)
+        .height(Length::Fill)
     }
     fn file_path_view(&self) -> iced::widget::Container<'_, AppMessage> {
         let mut col = column![text("Download to a folder").size(24),];
