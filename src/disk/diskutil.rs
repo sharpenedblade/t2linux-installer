@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::Result;
+use humansize::{DECIMAL, format_size};
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -24,6 +25,7 @@ struct Disk {
     device_identifier: String,
     OS_internal: bool,
     partitions: Vec<Partition>,
+    size: u64,
 }
 
 #[allow(dead_code, non_snake_case)]
@@ -60,12 +62,11 @@ pub fn get_external_disks() -> Result<Vec<BlockDevice>> {
     let diskutil_output = diskutil_cmd(vec!["list", "-plist", "external", "physical"])?;
     let all_disks: DiskList = plist::from_bytes(diskutil_output.as_ref()).unwrap();
     let mut disks: Vec<BlockDevice> = vec![];
-    for disk in all_disks.whole_disks {
-        // TODO: Size detection on macos
+    for disk in all_disks.all_disks_and_partitions {
         disks.push(BlockDevice {
-            path: PathBuf::from("/dev").join(&disk),
-            name: disk,
-            size: "Unknown Size".to_owned(),
+            path: PathBuf::from("/dev").join(&disk.device_identifier),
+            name: disk.device_identifier,
+            size: format_size(disk.size, DECIMAL),
         });
     }
     Ok(disks)
