@@ -199,7 +199,7 @@ impl MainPage {
         let mut content = column![
             text("Choose a distro").size(24),
             scrollable(distro_list)
-                .height(Length::FillPortion(1))
+                .height(320)
                 .width(Length::Fill),
             button("Next").on_press(AppMessage::Main(MainPageMessage::OpenTargetPicker))
         ];
@@ -275,7 +275,7 @@ impl MainPage {
                     .spacing(8)
                     .align_y(iced::alignment::Vertical::Center),
                 scrollable(list)
-                    .height(Length::FillPortion(1))
+                    .height(220)
                     .width(Length::Fill),
             ]
             .spacing(16),
