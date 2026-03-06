@@ -151,7 +151,6 @@ impl Page for MainPage {
                         self.show_distro_warning = false;
                     } else {
                         self.show_distro_warning = true;
-                        task = Task::batch([task, show_distro_warning_dialog()]);
                     }
                 }
                 MainPageMessage::LoadBlockDeviceList(l) => self.block_dev_list = Some(l),
@@ -296,17 +295,6 @@ fn open_folder(default_dir: PathBuf) -> Task<AppMessage> {
         ))),
         None => Task::done(AppMessage::Main(MainPageMessage::Ignore)),
     })
-}
-
-fn show_distro_warning_dialog() -> Task<AppMessage> {
-    Task::future(
-        rfd::AsyncMessageDialog::new()
-            .set_title("Missing distro")
-            .set_description("Please choose a distro")
-            .set_level(rfd::MessageLevel::Warning)
-            .show(),
-    )
-    .then(|_| Task::done(AppMessage::Main(MainPageMessage::Ignore)))
 }
 
 fn show_defaulting_dialog(path: PathBuf) -> Task<AppMessage> {
