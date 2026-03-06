@@ -32,7 +32,7 @@ impl FinishPage {
 }
 
 impl Page for FinishPage {
-    fn update(&mut self, message: AppMessage) -> (Option<Box<(dyn Page)>>, iced::Task<AppMessage>) {
+    fn update(&mut self, message: AppMessage) -> (Option<Box<dyn Page>>, iced::Task<AppMessage>) {
         let mut command: iced::Task<AppMessage> = iced::Task::none();
         let mut page: Option<Box<dyn Page>> = None;
         if let AppMessage::Finish(msg) = message {
@@ -48,31 +48,47 @@ impl Page for FinishPage {
         }
         (page, command)
     }
-    fn view(&self) -> iced::Element<AppMessage> {
+    fn view(&self) -> iced::Element<'_, AppMessage> {
+        let (glyph, title, subtitle) = match self.state {
+            FinishState::Clean => (
+                "✓",
+                "Download Complete",
+                "The Linux image is ready for the next step.",
+            ),
+            FinishState::Error(_) => (
+                "!",
+                "Download Failed",
+                "The image could not be downloaded. Check details below and try again.",
+            ),
+            FinishState::Cancelled => (
+                "×",
+                "Download Cancelled",
+                "No changes were made after cancellation.",
+            ),
+        };
+
         let mut col = column![
-            text(match self.state {
-                FinishState::Clean => "Finished Download",
-                FinishState::Error(_) => "Download failed",
-                FinishState::Cancelled => "Cancelled Download",
-            })
-            .size(24),
+            text(glyph).size(56),
+            text(title).size(34),
+            text(subtitle).size(18),
         ]
-        .spacing(16);
+        .spacing(14);
         if let FinishState::Error(e) = &self.state {
             println!("{e:#}");
-            col = col.push(text(e.to_string()));
+            col = col.push(text(e.to_string()).size(14));
         };
-        let mut row1 = row![].spacing(16);
+        let mut row1 = row![].spacing(14);
         match self.state {
             FinishState::Clean => {}
             FinishState::Error(_) | FinishState::Cancelled => {
-                row1 = row1
-                    .push(button("Retry").on_press(AppMessage::Finish(FinishPageMessage::Retry)))
+                row1 = row1.push(button("Try Again").on_press(AppMessage::Finish(
+                    FinishPageMessage::Retry,
+                )))
             }
         }
-        row1 = row1.push(button("Exit").on_press(AppMessage::Finish(FinishPageMessage::Exit)));
+        row1 = row1.push(button("Done").on_press(AppMessage::Finish(FinishPageMessage::Exit)));
         col = col.push(row1);
-        container(col.spacing(16))
+        container(col.spacing(20).padding(30).max_width(620))
             .align_x(iced::alignment::Horizontal::Center)
             .align_y(iced::alignment::Vertical::Center)
             .width(Length::Fill)

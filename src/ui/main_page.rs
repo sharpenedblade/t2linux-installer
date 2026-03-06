@@ -257,7 +257,7 @@ impl MainPage {
         let mut list = column![].spacing(16);
         if let Some(devs) = &self.block_dev_list {
             if devs.is_empty() {
-                list = list.push(text("No removable device found"));
+                list = list.push(text("No removable devices found"));
             }
             for (cur_i, dev) in devs.iter().enumerate() {
                 let label = format!("{} ({})", dev.name, dev.size);
@@ -266,7 +266,7 @@ impl MainPage {
                 }));
             }
         } else {
-            list = list.push(text("No removable device found"));
+            list = list.push(text("No removable devices found"));
         }
         container(
             column![

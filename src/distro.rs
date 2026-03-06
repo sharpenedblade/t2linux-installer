@@ -45,6 +45,13 @@ impl Distro {
             if s.iso_compression.is_some() {
                 return Err(anyhow!("Compression is unimplemented"));
             };
+            if let Ok(metadata) = tokio::fs::metadata(&iso_path).await
+                && metadata.is_file()
+            {
+                tokio::fs::remove_file(&iso_path).await.with_context(|| {
+                    format!("Failed to remove existing ISO file: {}", iso_path.display())
+                })?;
+            }
             let client = reqwest::Client::new();
             let iso_file = tokio::fs::OpenOptions::new()
                 .truncate(true)

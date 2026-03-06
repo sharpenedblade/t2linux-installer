@@ -87,28 +87,42 @@ impl Page for DownloadPage {
         (page, command)
     }
     fn view(&self) -> iced::Element<'_, AppMessage> {
-        let mut row1 = row![text("Downloading ISO").size(24)]
-            .spacing(16)
+        let mut row1 = row![text("Downloading Linux Image").size(30)]
+            .spacing(20)
             .align_y(Vertical::Center);
         if let Some(total_parts) = self.total_parts
             && total_parts > 1
             && let Some(current_parts) = self.current_parts
         {
-            row1 = row1.push(text(format!("Part {current_parts} of {total_parts}")))
+            row1 = row1.push(text(format!("Part {current_parts} of {total_parts}")).size(18))
         }
-        let mut col = column![row1,].spacing(16);
+        let mut col = column![
+            text("Please keep this window open until the download completes.")
+                .size(16)
+        ]
+        .spacing(18);
         col = col.push(
             row![
-                text(format!("{:.1}%", self.progress * 100.0)).width(50),
+                text(format!("{:.1}%", self.progress * 100.0))
+                    .size(18)
+                    .width(64),
                 progress_bar(0.0..=100.0, self.progress as f32 * 100.0),
             ]
-            .width(400)
-            .spacing(16)
+            .width(460)
+            .spacing(18)
             .align_y(Vertical::Center),
         );
-        col =
-            col.push(button("Cancel").on_press(AppMessage::Download(DownloadPageMessage::Cancel)));
-        container(col)
+        col = col.push(
+            row![button("Cancel Download")
+                .on_press(AppMessage::Download(DownloadPageMessage::Cancel))]
+            .spacing(12),
+        );
+        container(
+            column![row1, col]
+                .spacing(26)
+                .padding(28)
+                .max_width(560),
+        )
             .align_x(iced::alignment::Horizontal::Center)
             .align_y(iced::alignment::Vertical::Center)
             .width(Length::Fill)
