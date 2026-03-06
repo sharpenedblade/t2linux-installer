@@ -1,8 +1,12 @@
+use crate::disk::BlockDevice;
 use crate::distro::Distro;
 use crate::error::Error;
 use futures::Stream;
 use iced::{stream::channel, task::Sipper};
+use std::fmt::Display;
 use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::fs::File;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Debug)]
@@ -19,21 +23,46 @@ pub enum InstallProgress {
 struct Installer {
     settings: InstallSettings,
     ct: CancellationToken,
+    file: Arc<File>,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Hash)]
 pub struct InstallSettings {
     distro: Distro,
-    iso_path: PathBuf,
+    download_target: DownloadTarget,
+}
+
+#[derive(Debug, Clone, Hash)]
+pub enum DownloadTarget {
+    BlockDev(BlockDevice),
+    File(PathBuf),
+}
+
+impl Display for DownloadTarget {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DownloadTarget::BlockDev(block_device) => {
+                write!(f, "Block Device {}", block_device.name)
+            }
+            DownloadTarget::File(path_buf) => write!(f, "{}", path_buf.display()),
+        }
+    }
 }
 
 impl InstallSettings {
-    pub fn new(distro: Distro, iso_path: PathBuf) -> Self {
-        Self { distro, iso_path }
+    pub fn new(distro: Distro, download_target: DownloadTarget) -> Self {
+        Self {
+            distro,
+            download_target,
+        }
     }
-    pub fn install(&self, ct: CancellationToken) -> impl Stream<Item = InstallProgress> + use<> {
+    pub fn install(
+        &self,
+        file: Arc<File>,
+        ct: CancellationToken,
+    ) -> impl Stream<Item = InstallProgress> + use<> {
         let settings = self.clone();
-        let state = Installer { settings, ct };
+        let state = Installer { settings, file, ct };
         channel(
             10,
             async move |mut sender: futures_channel::mpsc::Sender<InstallProgress>| {
@@ -45,7 +74,7 @@ impl InstallSettings {
                 let mut download = state
                     .settings
                     .distro
-                    .download_iso(state.settings.iso_path.clone(), state.ct.clone())
+                    .download_iso(state.file, state.ct.clone())
                     .pin();
                 while let Some((part, progress)) = download.sip().await {
                     sender
@@ -60,7 +89,10 @@ impl InstallSettings {
                                 if state.ct.clone().is_cancelled() {
                                     Error::Cancelled
                                 } else {
-                                    Error::IsoDownload(e)
+                                    Error::IsoDownload(e.context(format!(
+                                        "Failed to download ISO to {}",
+                                        state.settings.download_target
+                                    )))
                                 },
                             ))
                             .unwrap();

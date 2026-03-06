@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use anyhow::Result;
 use humansize::{DECIMAL, format_size};
 use serde::Deserialize;
@@ -64,7 +62,7 @@ pub fn get_external_disks() -> Result<Vec<BlockDevice>> {
     let mut disks: Vec<BlockDevice> = vec![];
     for disk in all_disks.all_disks_and_partitions {
         disks.push(BlockDevice {
-            path: PathBuf::from("/dev").join(&disk.device_identifier),
+            os_identifier: disk.device_identifier.to_string(),
             name: disk.device_identifier,
             size: format_size(disk.size, DECIMAL),
         });
