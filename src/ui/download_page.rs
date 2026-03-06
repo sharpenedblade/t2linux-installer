@@ -73,8 +73,14 @@ impl Page for DownloadPage {
                     page = Some(Box::new(finish_page::FinishPage::new(state)))
                 }
                 DownloadPageMessage::DownloadProgress(part, progress) => {
-                    self.current_parts = Some(part);
-                    self.progress = progress
+                    // Keep UI updates at 0.1% granularity to reduce redraw churn.
+                    let quantized = (progress * 1000.0).round() / 1000.0;
+                    if self.current_parts != Some(part)
+                        || (self.progress - quantized).abs() > f64::EPSILON
+                    {
+                        self.current_parts = Some(part);
+                        self.progress = quantized;
+                    }
                 }
             }
         }
@@ -93,7 +99,7 @@ impl Page for DownloadPage {
         let mut col = column![row1,].spacing(16);
         col = col.push(
             row![
-                text(format!("{:.2}%", self.progress * 100.0)).width(50),
+                text(format!("{:.1}%", self.progress * 100.0)).width(50),
                 progress_bar(0.0..=100.0, self.progress as f32 * 100.0),
             ]
             .width(400)
