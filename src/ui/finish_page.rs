@@ -2,14 +2,14 @@ use std::sync::Arc;
 
 use crate::ui::app::{AppMessage, Page};
 use iced::Length;
-use iced::widget::{button, column, container, row, text};
+use iced::widget::{button, column, container, row, svg, text};
 use iced::window::{self};
 
 use super::main_page::MainPage;
 
 #[derive(Debug)]
 pub enum FinishState {
-    Clean,
+    Clean { usb_flashed: bool },
     Error(Arc<anyhow::Error>),
     Cancelled,
 }
@@ -49,37 +49,52 @@ impl Page for FinishPage {
         (page, command)
     }
     fn view(&self) -> iced::Element<'_, AppMessage> {
-        let (glyph, title, subtitle) = match self.state {
-            FinishState::Clean => (
-                "✓",
-                "Download Complete",
-                "The Linux image is ready for the next step.",
-            ),
+        let (title, subtitle) = match self.state {
+            FinishState::Clean { usb_flashed } => {
+                if usb_flashed {
+                    (
+                        "Your USB is ready to boot",
+                        "Restart your Mac and boot from the USB installer.",
+                    )
+                } else {
+                    (
+                        "Download Complete",
+                        "The Linux image is ready for the next step.",
+                    )
+                }
+            }
             FinishState::Error(_) => (
-                "!",
                 "Download Failed",
                 "The image could not be downloaded. Check details below and try again.",
             ),
             FinishState::Cancelled => (
-                "×",
                 "Download Cancelled",
                 "No changes were made after cancellation.",
             ),
         };
 
-        let mut col = column![
-            text(glyph).size(56),
-            text(title).size(34),
-            text(subtitle).size(18),
-        ]
-        .spacing(14);
+        let mut col = column![].spacing(14);
+        match self.state {
+            FinishState::Clean { .. } => {
+                col = col.push(
+                    svg(svg::Handle::from_memory(include_bytes!(
+                        "../../assets/finish-success.svg"
+                    )))
+                    .width(72)
+                    .height(72),
+                );
+            }
+            FinishState::Error(_) => col = col.push(text("!").size(56)),
+            FinishState::Cancelled => col = col.push(text("×").size(56)),
+        }
+        col = col.push(text(title).size(34)).push(text(subtitle).size(18));
         if let FinishState::Error(e) = &self.state {
             println!("{e:#}");
             col = col.push(text(e.to_string()).size(14));
         };
         let mut row1 = row![].spacing(14);
         match self.state {
-            FinishState::Clean => {}
+            FinishState::Clean { .. } => {}
             FinishState::Error(_) | FinishState::Cancelled => {
                 row1 = row1.push(button("Try Again").on_press(AppMessage::Finish(
                     FinishPageMessage::Retry,

@@ -31,6 +31,11 @@ impl InstallSettings {
     pub fn new(distro: Distro, iso_path: PathBuf) -> Self {
         Self { distro, iso_path }
     }
+
+    pub fn is_block_device_target(&self) -> bool {
+        self.iso_path.starts_with("/dev")
+    }
+
     pub fn install(&self, ct: CancellationToken) -> impl Stream<Item = InstallProgress> + use<> {
         let settings = self.clone();
         let state = Installer { settings, ct };

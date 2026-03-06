@@ -62,7 +62,9 @@ impl Page for DownloadPage {
                     }
                 }
                 DownloadPageMessage::Finished => {
-                    page = Some(Box::new(finish_page::FinishPage::new(FinishState::Clean)))
+                    page = Some(Box::new(finish_page::FinishPage::new(FinishState::Clean {
+                        usb_flashed: self.settings.is_block_device_target(),
+                    })))
                 }
                 DownloadPageMessage::Failed(e) => {
                     let state = if self.ct.is_cancelled() {
@@ -87,7 +89,7 @@ impl Page for DownloadPage {
         (page, command)
     }
     fn view(&self) -> iced::Element<'_, AppMessage> {
-        let mut row1 = row![text("Downloading Linux Image").size(30)]
+        let mut row1 = row![text("Downloading the T2 Linux Image").size(30)]
             .spacing(20)
             .align_y(Vertical::Center);
         if let Some(total_parts) = self.total_parts
