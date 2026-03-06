@@ -7,7 +7,7 @@ use crate::ui::{
 };
 use crate::{distro::Distro, install::InstallSettings};
 use iced::{
-    Length, Size, Task, window,
+    Length, Task,
     widget::{button, column, container, radio, row, scrollable, text, text_input},
 };
 
@@ -106,7 +106,6 @@ impl Page for MainPage {
                             iso_path,
                         );
                         page = Some(Box::new(download_page::DownloadPage::new(install_settings)));
-                        task = Task::batch([task, resize_active_window(Size::new(580.0, 260.0))]);
                     }
                 }
                 MainPageMessage::TriggerDirectoryPicker => {
@@ -292,16 +291,6 @@ fn default_download_dir() -> PathBuf {
         .map(PathBuf::from)
         .map(|home| home.join("Downloads"))
         .unwrap_or_else(|| PathBuf::from("Downloads"))
-}
-
-fn resize_active_window(size: Size) -> Task<AppMessage> {
-    window::oldest().then(move |id| {
-        if let Some(id) = id {
-            window::resize(id, size)
-        } else {
-            Task::none()
-        }
-    })
 }
 fn get_distro_list() -> Task<AppMessage> {
     Task::future(Distro::get_all()).then(|handle| match handle {

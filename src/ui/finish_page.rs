@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::ui::app::{AppMessage, Page};
-use iced::{Length, Size};
+use iced::Length;
 use iced::widget::{button, column, container, row, text};
 use iced::window::{self};
 
@@ -42,16 +42,7 @@ impl Page for FinishPage {
                 }
                 FinishPageMessage::Retry => {
                     page = Some(Box::new(MainPage::new()));
-                    command = iced::Task::batch([
-                        MainPage::init_tasks(),
-                        window::oldest().then(|id| {
-                            if let Some(id) = id {
-                                window::resize(id, Size::new(820.0, 560.0))
-                            } else {
-                                iced::Task::none()
-                            }
-                        }),
-                    ]);
+                    command = MainPage::init_tasks();
                 }
             }
         }

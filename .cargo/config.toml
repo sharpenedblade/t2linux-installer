@@ -1,0 +1,5 @@
+[build]
+target-dir = "/home/rishon/.cache/t2linux-installer/target"
+
+[profile.dev]
+incremental = true

@@ -6,6 +6,7 @@ use futures::StreamExt;
 use iced::Length;
 use iced::alignment::Vertical;
 use iced::widget::{button, column, container, progress_bar, row, text};
+use rfd::{MessageButtons, MessageDialogResult, MessageLevel};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
@@ -30,6 +31,7 @@ pub enum DownloadPageMessage {
     Finished,
     Failed(String),
     Cancel,
+    CancelDecision(MessageDialogResult),
 }
 
 impl DownloadPage {
@@ -46,13 +48,18 @@ impl DownloadPage {
 
 impl Page for DownloadPage {
     fn update(&mut self, message: AppMessage) -> (Option<Box<dyn Page>>, iced::Task<AppMessage>) {
-        let command: iced::Task<AppMessage> = iced::Task::none();
+        let mut command: iced::Task<AppMessage> = iced::Task::none();
         let mut page: Option<Box<dyn Page>> = None;
         if let AppMessage::Download(msg) = message {
             match msg {
                 DownloadPageMessage::StartedIsoDownload(parts) => self.total_parts = Some(parts),
                 DownloadPageMessage::Cancel => {
-                    self.ct.cancel();
+                    command = cancel_confirmation_dialog();
+                }
+                DownloadPageMessage::CancelDecision(choice) => {
+                    if matches!(choice, MessageDialogResult::Yes | MessageDialogResult::Ok) {
+                        self.ct.cancel();
+                    }
                 }
                 DownloadPageMessage::Finished => {
                     page = Some(Box::new(finish_page::FinishPage::new(FinishState::Clean)))
@@ -152,4 +159,20 @@ impl DownloadSubState {
             }
         })
     }
+}
+
+fn cancel_confirmation_dialog() -> iced::Task<AppMessage> {
+    iced::Task::future(
+        rfd::AsyncMessageDialog::new()
+            .set_title("Cancel download?")
+            .set_description("Do you want to cancel the current download?")
+            .set_level(MessageLevel::Warning)
+            .set_buttons(MessageButtons::YesNo)
+            .show(),
+    )
+    .then(|choice| {
+        iced::Task::done(AppMessage::Download(DownloadPageMessage::CancelDecision(
+            choice,
+        )))
+    })
 }
