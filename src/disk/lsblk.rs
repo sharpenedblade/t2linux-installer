@@ -7,7 +7,7 @@ pub fn get_external_disks() -> Result<Vec<BlockDevice>> {
     let all_devices = blockdev::get_devices()?;
     Ok(all_devices
         .into_iter()
-        .filter(|d| d.is_disk() && d.rm && !d.is_system())
+        .filter(|d| d.is_disk() && d.rm && !d.is_system() && !d.is_mounted())
         .map(|d| BlockDevice {
             path: PathBuf::from("/dev").join(&d.name),
             name: d.name,

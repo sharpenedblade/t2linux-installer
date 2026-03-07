@@ -41,40 +41,12 @@ cargo build --release
 Binary path:
 - `target/release/t2linux-installer`
 
-## Packaging (Binary + AppImage)
-
-Use the project release script:
-```bash
-scripts/release.sh
-```
-
-Outputs:
-- `dist/t2linux-installer`
-- `dist/*.AppImage`
-
-### Notes
-
-- `cargo-appimage` is required for AppImage:
-  ```bash
-  cargo install cargo-appimage
-  ```
-- If your environment blocks network access, AppImage runtime download may fail.
-
-## Alternate build wrapper
-
-```bash
-scripts/build.sh --release
-```
-
-This triggers the release packaging flow.
-
 ## Project Structure
 
 - `src/ui/` - app pages and UI flow
 - `src/disk/` - disk detection per platform
 - `src/distro.rs` - distro metadata + ISO download logic
 - `src/install.rs` - install/download orchestration
-- `scripts/release.sh` - release artifact builder
 - `assets/` - UI assets (finish screen icon)
 
 ## Contributing

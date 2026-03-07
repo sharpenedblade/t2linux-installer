@@ -74,16 +74,7 @@ impl Page for DownloadPage {
                     };
                     page = Some(Box::new(finish_page::FinishPage::new(state)))
                 }
-                DownloadPageMessage::DownloadProgress(part, progress) => {
-                    // Keep UI updates at 0.1% granularity to reduce redraw churn.
-                    let quantized = (progress * 1000.0).round() / 1000.0;
-                    if self.current_parts != Some(part)
-                        || (self.progress - quantized).abs() > f64::EPSILON
-                    {
-                        self.current_parts = Some(part);
-                        self.progress = quantized;
-                    }
-                }
+                DownloadPageMessage::DownloadProgress(_, _) => {}
             }
         }
         (page, command)

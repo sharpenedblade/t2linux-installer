@@ -80,7 +80,7 @@ impl Page for MainPage {
                         .and_then(|distros| distros.get(distro_index))
                         .map(|distro| distro.name.clone())
                     {
-                        self.iso_file_name = ensure_t2_suffix(sanitize_iso_name(name));
+                        self.iso_file_name = ensure_t2_suffix(name);
                     }
                 }
                 MainPageMessage::StartInstall => {
@@ -135,7 +135,7 @@ impl Page for MainPage {
                     self.download_target = Some(DownloadTarget::BlockDev(i))
                 }
                 MainPageMessage::SetIsoFileName(name) => {
-                    self.iso_file_name = sanitize_iso_name(name)
+                    self.iso_file_name = name
                 }
                 MainPageMessage::Ignore => {}
                 MainPageMessage::LoadDistroList(distros) => self.distro_list = Some(distros),
@@ -308,10 +308,6 @@ fn show_defaulting_dialog(path: PathBuf) -> Task<AppMessage> {
             .show(),
     )
     .then(|_| Task::done(AppMessage::Main(MainPageMessage::Ignore)))
-}
-
-fn sanitize_iso_name(name: String) -> String {
-    name.chars().filter(|c| !c.is_whitespace()).collect()
 }
 
 fn ensure_t2_suffix(name: String) -> String {
