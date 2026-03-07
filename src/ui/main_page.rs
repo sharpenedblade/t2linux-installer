@@ -1,4 +1,6 @@
 use anyhow::{Result, anyhow};
+use iced::Element;
+use iced::widget::{center, center_x, row, space};
 use std::{path::PathBuf, sync::Arc};
 
 use crate::disk::{self, BlockDevice};
@@ -155,12 +157,13 @@ impl Page for MainPage {
             MainPageState::Distro => self.distro_picker_view(),
             MainPageState::Target => self.target_picker_view(),
         };
-        container(e)
-            .align_x(iced::alignment::Horizontal::Center)
-            .align_y(iced::alignment::Vertical::Center)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .into()
+        // center(
+        // container(e)
+        // .align_x(iced::alignment::Horizontal::Center)
+        // .align_y(iced::alignment::Vertical::Center),
+        // )
+        // .into()
+        e.into()
     }
 
     fn subscription(&self) -> iced::Subscription<AppMessage> {
@@ -183,27 +186,43 @@ impl MainPage {
             }
         }
         column![
-            text("Choose a distro").size(24),
-            scrollable(distro_list).height(400).width(400),
-            button("Next").on_press(AppMessage::Main(MainPageMessage::OpenTargetPicker))
+            center_x(
+                column![
+                    text("Choose a distro").size(24).height(Length::Shrink),
+                    scrollable(distro_list).height(Length::Fill)
+                ]
+                .spacing(16)
+            )
+            .height(Length::Fill),
+            column![
+                space::vertical(),
+                row![
+                    space::horizontal(),
+                    button("Next").on_press(AppMessage::Main(MainPageMessage::OpenTargetPicker))
+                ]
+            ]
+            .height(Length::Fixed(32.0))
         ]
-        .spacing(16)
-        .padding(8)
+        // .spacing(16)
+        .padding(16)
     }
     fn target_picker_view(&self) -> iced::widget::Column<'_, AppMessage> {
         column![
-            self.file_path_view(),
-            self.block_dev_view(),
-            button("Begin Download").on_press_maybe(if self.download_target.is_some() {
-                Some(AppMessage::Main(MainPageMessage::StartInstall))
-            } else {
-                None
-            })
+            center_x(column![self.file_path_view(), self.block_dev_view()].spacing(32)),
+            space::vertical(),
+            row![
+                space::horizontal(),
+                button("Begin Download").on_press_maybe(if self.download_target.is_some() {
+                    Some(AppMessage::Main(MainPageMessage::StartInstall))
+                } else {
+                    None
+                })
+            ]
+            .height(Length::Fixed(32.0)),
         ]
-        .spacing(32)
-        .padding(8)
+        .padding(16)
     }
-    fn file_path_view(&self) -> iced::widget::Container<'_, AppMessage> {
+    fn file_path_view(&self) -> Element<'_, AppMessage> {
         let mut col = column![text("Download to a file").size(24),];
         if let Some(UIDownloadTarget::File(path)) = &self.download_target {
             col = col.push(text(format!("{}", path.display())));
@@ -214,9 +233,9 @@ impl MainPage {
             button("Choose file path ")
                 .on_press(AppMessage::Main(MainPageMessage::TriggerFilePicker)),
         );
-        container(col.spacing(16)).width(350)
+        col.spacing(16).into()
     }
-    fn block_dev_view(&self) -> iced::widget::Container<'_, AppMessage> {
+    fn block_dev_view(&self) -> Element<'_, AppMessage> {
         let selected_i = if let Some(UIDownloadTarget::BlockDev(n)) = self.download_target {
             Some(n)
         } else {
@@ -231,19 +250,17 @@ impl MainPage {
                 }));
             }
         }
-        container(
-            column![
-                text("Flash to a disk").size(24),
-                list,
-                button("Open Device").on_press_maybe(match self.download_target {
-                    Some(UIDownloadTarget::BlockDev(_)) =>
-                        Some(AppMessage::Main(MainPageMessage::TriggerBlockDevicePrompt)),
-                    _ => None,
-                })
-            ]
-            .spacing(16),
-        )
-        .width(350)
+        column![
+            text("Flash to a disk").size(24),
+            scrollable(list).height(Length::Shrink),
+            button("Open Device").on_press_maybe(match self.download_target {
+                Some(UIDownloadTarget::BlockDev(_)) =>
+                    Some(AppMessage::Main(MainPageMessage::TriggerBlockDevicePrompt)),
+                _ => None,
+            })
+        ]
+        .spacing(16)
+        .into()
     }
 }
 
