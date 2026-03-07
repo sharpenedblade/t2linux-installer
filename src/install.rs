@@ -61,6 +61,10 @@ impl InstallSettings {
         matches!(self.download_target, DownloadTarget::BlockDev(_))
     }
 
+    pub fn download_target_display(&self) -> String {
+        self.download_target.to_string()
+    }
+
     pub fn install(
         &self,
         file: Arc<File>,

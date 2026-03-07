@@ -80,27 +80,41 @@ impl Page for MainPage {
                 }
                 MainPageMessage::StartInstall => {
                     if let Some(distro_index) = self.distro_index
-                        && let Some(download_target) = self.download_target.clone()
                         && let Some(distro_list) = self.distro_list.clone()
-                        && let Some(block_dev_list) = self.block_dev_list.clone()
-                        && self.download_file.is_some()
                     {
-                        // Already checked to be Some(), and behind a &mut so immutable
-                        let file = self.download_file.take().unwrap();
-                        let download_target = match download_target {
-                            UIDownloadTarget::BlockDev(i) => {
-                                DownloadTarget::BlockDev(block_dev_list[i].clone())
+                        if let Some(distro) = distro_list.get(distro_index).cloned() {
+                            let default_filename = format!("{}.iso", ensure_t2_suffix(distro.name.clone()));
+                            let target_and_file =
+                                match (self.download_target.clone(), self.download_file.take()) {
+                                    (Some(UIDownloadTarget::BlockDev(i)), Some(file)) => {
+                                        self.block_dev_list.clone().and_then(|block_dev_list| {
+                                            block_dev_list.get(i).cloned().map(|block_dev| {
+                                                (DownloadTarget::BlockDev(block_dev), file)
+                                            })
+                                        })
+                                    }
+                                    (Some(UIDownloadTarget::File(path_buf)), Some(file)) => {
+                                        Some((DownloadTarget::File(path_buf), file))
+                                    }
+                                    _ => match open_default_file(default_filename) {
+                                        Ok((file, path)) => Some((DownloadTarget::File(path), file)),
+                                        Err(e) => {
+                                            task = Task::done(AppMessage::Main(
+                                                MainPageMessage::Err(Arc::new(anyhow!(e))),
+                                            ));
+                                            None
+                                        }
+                                    },
+                                };
+
+                            if let Some((download_target, file)) = target_and_file {
+                                let install_settings = InstallSettings::new(distro, download_target);
+                                page = Some(Box::new(download_page::DownloadPage::new(
+                                    install_settings,
+                                    file,
+                                )));
                             }
-                            UIDownloadTarget::File(path_buf) => DownloadTarget::File(path_buf),
-                        };
-                        let install_settings = InstallSettings::new(
-                            distro_list.get(distro_index).unwrap().clone(),
-                            download_target,
-                        );
-                        page = Some(Box::new(download_page::DownloadPage::new(
-                            install_settings,
-                            file,
-                        )))
+                        }
                     }
                 }
                 MainPageMessage::BackToDistro => self.state = MainPageState::Distro,
@@ -120,6 +134,7 @@ impl Page for MainPage {
                     let file = Arc::try_unwrap(file).unwrap();
                     self.download_file = Some(file);
                     self.download_target = Some(UIDownloadTarget::File(path_buf));
+                    task = Task::done(AppMessage::Main(MainPageMessage::StartInstall));
                 }
                 MainPageMessage::PickBlockDeviceIndex(i) => {
                     self.download_target = Some(UIDownloadTarget::BlockDev(i))
@@ -218,11 +233,7 @@ impl MainPage {
                 .height(Length::Fill),
             row![
                 button("Back").on_press(AppMessage::Main(MainPageMessage::BackToDistro)),
-                button("Begin Download").on_press_maybe(if self.download_target.is_some() {
-                    Some(AppMessage::Main(MainPageMessage::StartInstall))
-                } else {
-                    None
-                })
+                button("Begin Download").on_press(AppMessage::Main(MainPageMessage::StartInstall))
             ]
             .spacing(12)
         ]
@@ -323,12 +334,31 @@ fn ensure_t2_suffix(name: String) -> String {
     let base_name = name
         .strip_suffix(".iso")
         .or_else(|| name.strip_suffix(".ISO"))
-        .unwrap_or(name.as_str());
-    if base_name.to_ascii_lowercase().ends_with("-t2") {
-        base_name.to_owned()
+        .unwrap_or(name.as_str())
+        .trim();
+    let lowered = base_name.to_ascii_lowercase();
+    if lowered.ends_with("_t2") || lowered.ends_with("-t2") || lowered.ends_with(" t2") {
+        let stem = base_name[..base_name.len() - 3]
+            .trim_end_matches(['_', '-', ' '])
+            .trim_end();
+        format!("{stem}_T2")
     } else {
-        format!("{base_name}-T2")
+        format!("{base_name}_T2")
     }
+}
+
+fn open_default_file(name: String) -> Result<(File, PathBuf)> {
+    let path = default_download_dir().join(name);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&path)?;
+    Ok((File::from_std(file), path))
 }
 
 fn default_download_dir() -> PathBuf {

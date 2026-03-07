@@ -24,6 +24,7 @@ pub struct DownloadPage {
     current_parts: Option<usize>,
     ct: CancellationToken,
     file: Arc<File>,
+    cancel_dialog_open: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -47,6 +48,7 @@ impl DownloadPage {
             settings,
             ct: CancellationToken::new(),
             file: Arc::new(file),
+            cancel_dialog_open: false,
         }
     }
 }
@@ -57,11 +59,18 @@ impl Page for DownloadPage {
         let mut page: Option<Box<dyn Page>> = None;
         if let AppMessage::Download(msg) = message {
             match msg {
-                DownloadPageMessage::StartedIsoDownload(parts) => self.total_parts = Some(parts),
+                DownloadPageMessage::StartedIsoDownload(parts) => {
+                    self.total_parts = Some(parts);
+                    self.current_parts = Some(1);
+                }
                 DownloadPageMessage::Cancel => {
-                    command = cancel_confirmation_dialog();
+                    if !self.cancel_dialog_open {
+                        self.cancel_dialog_open = true;
+                        command = cancel_confirmation_dialog();
+                    }
                 }
                 DownloadPageMessage::CancelDecision(choice) => {
+                    self.cancel_dialog_open = false;
                     if matches!(choice, MessageDialogResult::Yes | MessageDialogResult::Ok) {
                         self.ct.cancel();
                     }
@@ -79,24 +88,22 @@ impl Page for DownloadPage {
                     };
                     page = Some(Box::new(finish_page::FinishPage::new(state)))
                 }
-                DownloadPageMessage::DownloadProgress(_, _) => {}
+                DownloadPageMessage::DownloadProgress(part, progress) => {
+                    let quantized = (progress * 1000.0).round() / 1000.0;
+                    self.current_parts = Some(part);
+                    self.progress = quantized;
+                }
             }
         }
         (page, command)
     }
     fn view(&self) -> iced::Element<'_, AppMessage> {
-        let mut row1 = row![text("Downloading the T2 Linux Image").size(30)]
-            .spacing(20)
-            .align_y(Vertical::Center);
-        if let Some(total_parts) = self.total_parts
-            && total_parts > 1
-            && let Some(current_parts) = self.current_parts
-        {
-            row1 = row1.push(text(format!("Part {current_parts} of {total_parts}")).size(18))
-        }
+        let current_part = self.current_parts.unwrap_or(1);
+        let target = self.settings.download_target_display();
         let mut col = column![
-            text("Please keep this window open until the download completes.")
-                .size(16)
+            text("Downloading the T2 Linux Image").size(30),
+            text("Please keep this window open while the download completes.").size(16),
+            text(format!("Download part {current_part} to {target}")).size(16)
         ]
         .spacing(18);
         col = col.push(
@@ -116,13 +123,13 @@ impl Page for DownloadPage {
             .spacing(12),
         );
         container(
-            column![row1, col]
+            column![col]
                 .spacing(26)
                 .padding(28)
                 .max_width(560),
         )
             .align_x(iced::alignment::Horizontal::Center)
-            .align_y(iced::alignment::Vertical::Center)
+            .align_y(iced::alignment::Vertical::Top)
             .width(Length::Fill)
             .height(Length::Fill)
             .into()
