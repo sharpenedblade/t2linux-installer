@@ -1,6 +1,8 @@
+use anyhow::{Result, anyhow};
 use std::{path::PathBuf, sync::Arc};
 
 use crate::disk::{self, BlockDevice};
+use crate::install::DownloadTarget;
 use crate::ui::{
     app::{AppMessage, Page},
     download_page,
@@ -10,6 +12,7 @@ use iced::{
     Length, Task,
     widget::{button, column, container, radio, row, scrollable, text, text_input},
 };
+use tokio::fs::{File, OpenOptions};
 
 use super::finish_page::FinishPage;
 
@@ -20,9 +23,10 @@ pub enum MainPageMessage {
     Err(Arc<anyhow::Error>),
     PickDistro(usize),
     OpenTargetPicker,
-    TriggerDirectoryPicker,
-    PickIsoDirectory(PathBuf),
-    SetIsoFileName(String),
+    TriggerFilePicker,
+    PickIsoFile(Arc<File>, PathBuf),
+    SetBlockDeviceFile(Arc<File>),
+    TriggerBlockDevicePrompt,
     PickBlockDeviceIndex(usize),
     StartInstall,
     BackToDistro,
@@ -34,8 +38,8 @@ enum MainPageState {
     Target,
 }
 
-#[derive(Clone)]
-pub enum DownloadTarget {
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub enum UIDownloadTarget {
     BlockDev(usize),
     Directory(PathBuf),
 }
@@ -45,9 +49,8 @@ pub struct MainPage {
     distro_list: Option<Vec<Distro>>,
     block_dev_list: Option<Vec<BlockDevice>>,
     distro_index: Option<usize>,
-    download_target: Option<DownloadTarget>,
-    iso_file_name: String,
-    show_distro_warning: bool,
+    download_target: Option<UIDownloadTarget>,
+    download_file: Option<File>,
 }
 
 impl MainPage {
@@ -58,9 +61,8 @@ impl MainPage {
             distro_list: None,
             block_dev_list: None,
             distro_index: None,
-            download_target: Some(DownloadTarget::Directory(default_download_dir)),
-            iso_file_name: "linux-T2".to_owned(),
-            show_distro_warning: false,
+            download_target: None,
+            download_file: None,
         }
     }
 }
@@ -85,54 +87,44 @@ impl Page for MainPage {
                 }
                 MainPageMessage::StartInstall => {
                     if let Some(distro_index) = self.distro_index
-                        && let Some(download_target) = self.download_target.as_ref()
-                        && let Some(distro_list) = self.distro_list.as_ref()
-                        && let Some(distro) = distro_list.get(distro_index).cloned()
+                        && let Some(download_target) = self.download_target.clone()
+                        && let Some(distro_list) = self.distro_list.clone()
+                        && let Some(block_dev_list) = self.block_dev_list.clone()
+                        && self.download_file.is_some()
                     {
-                        let iso_path = match download_target {
-                            DownloadTarget::BlockDev(i) => self
-                                .block_dev_list
-                                .as_ref()
-                                .and_then(|block_dev_list| block_dev_list.get(*i))
-                                .map(|dev| dev.path.clone()),
-                            DownloadTarget::Directory(path_buf) => {
-                                let trimmed = self.iso_file_name.trim();
-                                let name = if trimmed.is_empty() { "download" } else { trimmed };
-                                let filename = name
-                                    .strip_suffix(".iso")
-                                    .or_else(|| name.strip_suffix(".ISO"))
-                                    .unwrap_or(name)
-                                    .to_owned();
-                                Some(path_buf.join(format!("{filename}.iso")))
+                        // Already checked to be Some(), and behind a &mut so immutable
+                        let file = self.download_file.take().unwrap();
+                        let download_target = match download_target {
+                            UIDownloadTarget::BlockDev(i) => {
+                                DownloadTarget::BlockDev(block_dev_list[i].clone())
                             }
+                            UIDownloadTarget::File(path_buf) => DownloadTarget::File(path_buf),
                         };
-
-                        if let Some(iso_path) = iso_path {
-                            let install_settings = InstallSettings::new(distro, iso_path);
-                            page = Some(Box::new(download_page::DownloadPage::new(
-                                install_settings,
-                            )));
-                        }
+                        let install_settings = InstallSettings::new(
+                            distro_list.get(distro_index).unwrap().clone(),
+                            download_target,
+                        );
+                        page = Some(Box::new(download_page::DownloadPage::new(
+                            install_settings,
+                            file,
+                        )))
                     }
                 }
                 MainPageMessage::BackToDistro => self.state = MainPageState::Distro,
                 MainPageMessage::TriggerDirectoryPicker => {
                     task = open_folder(default_download_dir());
                 }
-                MainPageMessage::PickIsoDirectory(path_buf) => {
-                    if path_buf.is_dir() {
-                        self.download_target = Some(DownloadTarget::Directory(path_buf));
-                    } else {
-                        let fallback_dir = path_buf
-                            .parent()
-                            .map(PathBuf::from)
-                            .unwrap_or_else(default_download_dir);
-                        self.download_target = Some(DownloadTarget::Directory(fallback_dir));
-                        task = Task::batch([task, show_defaulting_dialog(path_buf)]);
-                    }
+                MainPageMessage::PickIsoFile(file, path_buf) => {
+                    let file = Arc::try_unwrap(file).unwrap();
+                    self.download_file = Some(file);
+                    self.download_target = Some(UIDownloadTarget::File(path_buf));
                 }
                 MainPageMessage::PickBlockDeviceIndex(i) => {
-                    self.download_target = Some(DownloadTarget::BlockDev(i))
+                    self.download_target = Some(UIDownloadTarget::BlockDev(i))
+                }
+                MainPageMessage::SetBlockDeviceFile(file) => {
+                    let file = Arc::try_unwrap(file).unwrap();
+                    self.download_file = Some(file);
                 }
                 MainPageMessage::SetIsoFileName(name) => {
                     self.iso_file_name = sanitize_iso_name(name)
@@ -154,6 +146,14 @@ impl Page for MainPage {
                     }
                 }
                 MainPageMessage::LoadBlockDeviceList(l) => self.block_dev_list = Some(l),
+                MainPageMessage::TriggerBlockDevicePrompt => {
+                    if let Some(block_devices) = &self.block_dev_list
+                        && let Some(UIDownloadTarget::BlockDev(i)) = self.download_target
+                    {
+                        let block_device = block_devices[i].clone();
+                        task = get_block_dev_fd(block_device);
+                    }
+                }
             }
         }
         if self.distro_list.is_none() {
@@ -228,8 +228,8 @@ impl MainPage {
         .height(Length::Fill)
     }
     fn file_path_view(&self) -> iced::widget::Container<'_, AppMessage> {
-        let mut col = column![text("Download to a folder").size(24),];
-        if let Some(DownloadTarget::Directory(path)) = &self.download_target {
+        let mut col = column![text("Download to a file").size(24),];
+        if let Some(UIDownloadTarget::File(path)) = &self.download_target {
             col = col.push(text(format!("{}", path.display())));
         } else {
             col = col.push(text("No download folder selected"))
@@ -250,7 +250,7 @@ impl MainPage {
         container(col.spacing(16)).width(Length::Fill)
     }
     fn block_dev_view(&self) -> iced::widget::Container<'_, AppMessage> {
-        let selected_i = if let Some(DownloadTarget::BlockDev(n)) = self.download_target {
+        let selected_i = if let Some(UIDownloadTarget::BlockDev(n)) = self.download_target {
             Some(n)
         } else {
             None
@@ -271,30 +271,56 @@ impl MainPage {
         }
         container(
             column![
-                row![text("Flash to a disk").size(24), text("(optional)")]
-                    .spacing(8)
-                    .align_y(iced::alignment::Vertical::Center),
-                scrollable(list)
-                    .height(220)
-                    .width(Length::Fill),
+                text("Flash to a disk").size(24),
+                list,
+                button("Open Device").on_press_maybe(match self.download_target {
+                    Some(UIDownloadTarget::BlockDev(_)) =>
+                        Some(AppMessage::Main(MainPageMessage::TriggerBlockDevicePrompt)),
+                    _ => None,
+                })
             ]
             .spacing(16),
         )
-        .width(Length::Fill)
+        .width(350)
     }
 }
 
-fn open_folder(default_dir: PathBuf) -> Task<AppMessage> {
-    Task::future(
-        rfd::AsyncFileDialog::new()
-            .set_directory(default_dir)
-            .pick_folder(),
-    )
-    .then(|handle| match handle {
-        Some(file_handle) => Task::done(AppMessage::Main(MainPageMessage::PickIsoDirectory(
-            file_handle.into(),
-        ))),
-        None => Task::done(AppMessage::Main(MainPageMessage::Ignore)),
+fn open_file(name: String) -> Task<AppMessage> {
+    Task::future(async {
+        if let Some(handle) = rfd::AsyncFileDialog::new()
+            .add_filter("ISO files", &["iso"])
+            .set_file_name(name)
+            .save_file()
+            .await
+        {
+            let file = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .open(handle.path())
+                .await?;
+            Ok(Some((
+                Arc::new(file.into_std().await.into()),
+                handle.path().to_owned(),
+            )))
+        } else {
+            Ok(None)
+        }
+    })
+    .then(|res: Result<Option<(Arc<File>, PathBuf)>>| {
+        let o = match res {
+            Ok(o) => o,
+            Err(e) => {
+                return Task::done(AppMessage::Main(MainPageMessage::Err(Arc::new(anyhow!(e)))));
+            }
+        };
+        match o {
+            Some((file, path)) => {
+                Task::done(AppMessage::Main(MainPageMessage::PickIsoFile(file, path)))
+            }
+            None => Task::done(AppMessage::Main(MainPageMessage::Ignore)),
+        }
     })
 }
 
@@ -343,6 +369,15 @@ fn get_distro_list() -> Task<AppMessage> {
 fn get_block_dev_list() -> Task<AppMessage> {
     Task::future(disk::get_external_disks()).then(|handle| match handle {
         Ok(list) => Task::done(AppMessage::Main(MainPageMessage::LoadBlockDeviceList(list))),
+        Err(e) => Task::done(AppMessage::Main(MainPageMessage::Err(Arc::new(e)))),
+    })
+}
+
+fn get_block_dev_fd(b: BlockDevice) -> Task<AppMessage> {
+    Task::future(disk::get_fd_for_disk(b)).then(|handle| match handle {
+        Ok(file) => Task::done(AppMessage::Main(MainPageMessage::SetBlockDeviceFile(
+            Arc::new(file),
+        ))),
         Err(e) => Task::done(AppMessage::Main(MainPageMessage::Err(Arc::new(e)))),
     })
 }
