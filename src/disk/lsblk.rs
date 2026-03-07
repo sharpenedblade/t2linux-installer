@@ -6,7 +6,7 @@ pub fn get_external_disks() -> Result<Vec<BlockDevice>> {
     let all_devices = blockdev::get_devices()?;
     Ok(all_devices
         .into_iter()
-        // .filter(|d| d.is_disk() && !d.is_mounted())
+        .filter(|d| d.is_disk() && d.rm && !d.is_system() && !d.is_mounted())
         .map(|d| BlockDevice {
             os_identifier: d.name.clone(),
             name: d.name,

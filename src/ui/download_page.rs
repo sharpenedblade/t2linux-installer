@@ -8,6 +8,7 @@ use futures::StreamExt;
 use iced::Length;
 use iced::alignment::Vertical;
 use iced::widget::{button, column, container, progress_bar, row, text};
+use rfd::{MessageButtons, MessageDialogResult, MessageLevel};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use tokio::fs::File;
@@ -23,6 +24,7 @@ pub struct DownloadPage {
     current_parts: Option<usize>,
     ct: CancellationToken,
     file: Arc<File>,
+    cancel_dialog_open: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -34,6 +36,7 @@ pub enum DownloadPageMessage {
     Finished,
     Failed(String),
     Cancel,
+    CancelDecision(MessageDialogResult),
 }
 
 impl DownloadPage {
@@ -45,22 +48,37 @@ impl DownloadPage {
             settings,
             ct: CancellationToken::new(),
             file: Arc::new(file),
+            cancel_dialog_open: false,
         }
     }
 }
 
 impl Page for DownloadPage {
-    fn update(&mut self, message: AppMessage) -> (Option<Box<(dyn Page)>>, iced::Task<AppMessage>) {
-        let command: iced::Task<AppMessage> = iced::Task::none();
+    fn update(&mut self, message: AppMessage) -> (Option<Box<dyn Page>>, iced::Task<AppMessage>) {
+        let mut command: iced::Task<AppMessage> = iced::Task::none();
         let mut page: Option<Box<dyn Page>> = None;
         if let AppMessage::Download(msg) = message {
             match msg {
-                DownloadPageMessage::StartedIsoDownload(parts) => self.total_parts = Some(parts),
+                DownloadPageMessage::StartedIsoDownload(parts) => {
+                    self.total_parts = Some(parts);
+                    self.current_parts = Some(1);
+                }
                 DownloadPageMessage::Cancel => {
-                    self.ct.cancel();
+                    if !self.cancel_dialog_open {
+                        self.cancel_dialog_open = true;
+                        command = cancel_confirmation_dialog();
+                    }
+                }
+                DownloadPageMessage::CancelDecision(choice) => {
+                    self.cancel_dialog_open = false;
+                    if matches!(choice, MessageDialogResult::Yes | MessageDialogResult::Ok) {
+                        self.ct.cancel();
+                    }
                 }
                 DownloadPageMessage::Finished => {
-                    page = Some(Box::new(finish_page::FinishPage::new(FinishState::Clean)))
+                    page = Some(Box::new(finish_page::FinishPage::new(FinishState::Clean {
+                        usb_flashed: self.settings.is_block_device_target(),
+                    })))
                 }
                 DownloadPageMessage::Failed(e) => {
                     let state = if self.ct.is_cancelled() {
@@ -71,38 +89,47 @@ impl Page for DownloadPage {
                     page = Some(Box::new(finish_page::FinishPage::new(state)))
                 }
                 DownloadPageMessage::DownloadProgress(part, progress) => {
+                    let quantized = (progress * 1000.0).round() / 1000.0;
                     self.current_parts = Some(part);
-                    self.progress = progress
+                    self.progress = quantized;
                 }
             }
         }
         (page, command)
     }
-    fn view(&self) -> iced::Element<AppMessage> {
-        let mut row1 = row![text("Downloading ISO").size(24)]
-            .spacing(16)
-            .align_y(Vertical::Center);
-        if let Some(total_parts) = self.total_parts
-            && total_parts > 1
-            && let Some(current_parts) = self.current_parts
-        {
-            row1 = row1.push(text(format!("Part {current_parts} of {total_parts}")))
-        }
-        let mut col = column![row1,].spacing(16);
+    fn view(&self) -> iced::Element<'_, AppMessage> {
+        let current_part = self.current_parts.unwrap_or(1);
+        let target = self.settings.download_target_display();
+        let mut col = column![
+            text("Downloading the T2 Linux Image").size(30),
+            text("Please keep this window open while the download completes.").size(16),
+            text(format!("Download part {current_part} to {target}")).size(16)
+        ]
+        .spacing(18);
         col = col.push(
             row![
-                text(format!("{:.2}%", self.progress * 100.0)).width(50),
+                text(format!("{:.1}%", self.progress * 100.0))
+                    .size(18)
+                    .width(64),
                 progress_bar(0.0..=100.0, self.progress as f32 * 100.0),
             ]
-            .width(400)
-            .spacing(16)
+            .width(460)
+            .spacing(18)
             .align_y(Vertical::Center),
         );
-        col =
-            col.push(button("Cancel").on_press(AppMessage::Download(DownloadPageMessage::Cancel)));
-        container(col)
+        col = col.push(
+            row![button("Cancel Download")
+                .on_press(AppMessage::Download(DownloadPageMessage::Cancel))]
+            .spacing(12),
+        );
+        container(
+            column![col]
+                .spacing(26)
+                .padding(28)
+                .max_width(560),
+        )
             .align_x(iced::alignment::Horizontal::Center)
-            .align_y(iced::alignment::Vertical::Center)
+            .align_y(iced::alignment::Vertical::Top)
             .width(Length::Fill)
             .height(Length::Fill)
             .into()
@@ -115,6 +142,10 @@ impl Page for DownloadPage {
             file: self.file.clone(),
         };
         iced::Subscription::run_with(init, DownloadSubState::subscription_task)
+    }
+
+    fn block_window_close(&self) -> bool {
+        self.total_parts.is_some() && !self.ct.is_cancelled()
     }
 }
 
@@ -148,4 +179,20 @@ impl DownloadSubState {
                 }
             })
     }
+}
+
+fn cancel_confirmation_dialog() -> iced::Task<AppMessage> {
+    iced::Task::future(
+        rfd::AsyncMessageDialog::new()
+            .set_title("Cancel download?")
+            .set_description("Do you want to cancel the current download?")
+            .set_level(MessageLevel::Warning)
+            .set_buttons(MessageButtons::YesNo)
+            .show(),
+    )
+    .then(|choice| {
+        iced::Task::done(AppMessage::Download(DownloadPageMessage::CancelDecision(
+            choice,
+        )))
+    })
 }
