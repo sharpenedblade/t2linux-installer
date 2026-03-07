@@ -56,6 +56,11 @@ impl InstallSettings {
             download_target,
         }
     }
+
+    pub fn is_block_device_target(&self) -> bool {
+        matches!(self.download_target, DownloadTarget::BlockDev(_))
+    }
+
     pub fn install(
         &self,
         file: Arc<File>,

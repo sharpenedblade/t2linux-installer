@@ -10,7 +10,7 @@ use crate::ui::{
 use crate::{distro::Distro, install::InstallSettings};
 use iced::{
     Length, Task,
-    widget::{button, column, container, radio, row, scrollable, text, text_input},
+    widget::{button, column, container, radio, row, scrollable, text},
 };
 use tokio::fs::{File, OpenOptions};
 
@@ -41,7 +41,7 @@ enum MainPageState {
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub enum UIDownloadTarget {
     BlockDev(usize),
-    Directory(PathBuf),
+    File(PathBuf),
 }
 
 pub struct MainPage {
@@ -51,11 +51,11 @@ pub struct MainPage {
     distro_index: Option<usize>,
     download_target: Option<UIDownloadTarget>,
     download_file: Option<File>,
+    show_distro_warning: bool,
 }
 
 impl MainPage {
     pub fn new() -> Self {
-        let default_download_dir = default_download_dir();
         Self {
             state: MainPageState::Distro,
             distro_list: None,
@@ -63,6 +63,7 @@ impl MainPage {
             distro_index: None,
             download_target: None,
             download_file: None,
+            show_distro_warning: false,
         }
     }
 }
@@ -76,14 +77,6 @@ impl Page for MainPage {
                 MainPageMessage::PickDistro(distro_index) => {
                     self.distro_index = Some(distro_index);
                     self.show_distro_warning = false;
-                    if let Some(name) = self
-                        .distro_list
-                        .as_ref()
-                        .and_then(|distros| distros.get(distro_index))
-                        .map(|distro| distro.name.clone())
-                    {
-                        self.iso_file_name = ensure_t2_suffix(name);
-                    }
                 }
                 MainPageMessage::StartInstall => {
                     if let Some(distro_index) = self.distro_index
@@ -111,8 +104,17 @@ impl Page for MainPage {
                     }
                 }
                 MainPageMessage::BackToDistro => self.state = MainPageState::Distro,
-                MainPageMessage::TriggerDirectoryPicker => {
-                    task = open_folder(default_download_dir());
+                MainPageMessage::TriggerFilePicker => {
+                    let file_name = self
+                        .distro_index
+                        .and_then(|i| {
+                            self.distro_list
+                                .as_ref()
+                                .and_then(|distros| distros.get(i))
+                                .map(|distro| ensure_t2_suffix(distro.name.clone()))
+                        })
+                        .unwrap_or_else(|| "linux-T2".to_owned());
+                    task = open_file(format!("{file_name}.iso"));
                 }
                 MainPageMessage::PickIsoFile(file, path_buf) => {
                     let file = Arc::try_unwrap(file).unwrap();
@@ -125,9 +127,6 @@ impl Page for MainPage {
                 MainPageMessage::SetBlockDeviceFile(file) => {
                     let file = Arc::try_unwrap(file).unwrap();
                     self.download_file = Some(file);
-                }
-                MainPageMessage::SetIsoFileName(name) => {
-                    self.iso_file_name = name
                 }
                 MainPageMessage::Ignore => {}
                 MainPageMessage::LoadDistroList(distros) => self.distro_list = Some(distros),
@@ -204,7 +203,11 @@ impl MainPage {
         ];
 
         if self.show_distro_warning {
-            content = content.push(row![text("⚠"), text("Please choose a distro")].spacing(8));
+            content = content.push(
+                container(row![text("⚠"), text("Please choose a distro")].spacing(8))
+                    .padding(8)
+                    .width(Length::Fill),
+            );
         }
 
         content.spacing(16).padding(8).width(Length::Fill)
@@ -228,25 +231,16 @@ impl MainPage {
         .height(Length::Fill)
     }
     fn file_path_view(&self) -> iced::widget::Container<'_, AppMessage> {
-        let mut col = column![text("Download to a file").size(24),];
+        let mut col = column![
+            text("Download to a file").size(24),
+            text("By default it is saved to ~/Downloads"),
+        ];
         if let Some(UIDownloadTarget::File(path)) = &self.download_target {
             col = col.push(text(format!("{}", path.display())));
-        } else {
-            col = col.push(text("No download folder selected"))
         }
-        col = col.push(
-            text_input("ISO name", &self.iso_file_name)
-                .on_input(|name| AppMessage::Main(MainPageMessage::SetIsoFileName(name))),
-        );
-        col = col.push(
-            row![
-                button("Choose folder")
-                    .on_press(AppMessage::Main(MainPageMessage::TriggerDirectoryPicker)),
-                text("(optional)")
-            ]
-            .spacing(8)
-            .align_y(iced::alignment::Vertical::Center),
-        );
+        col = col.push(button("Save as").on_press(AppMessage::Main(
+            MainPageMessage::TriggerFilePicker,
+        )));
         container(col.spacing(16)).width(Length::Fill)
     }
     fn block_dev_view(&self) -> iced::widget::Container<'_, AppMessage> {
@@ -271,7 +265,7 @@ impl MainPage {
         }
         container(
             column![
-                text("Flash to a disk").size(24),
+                text("Flash to a disk (optional)").size(24),
                 list,
                 button("Open Device").on_press_maybe(match self.download_target {
                     Some(UIDownloadTarget::BlockDev(_)) =>
@@ -289,6 +283,7 @@ fn open_file(name: String) -> Task<AppMessage> {
     Task::future(async {
         if let Some(handle) = rfd::AsyncFileDialog::new()
             .add_filter("ISO files", &["iso"])
+            .set_directory(default_download_dir())
             .set_file_name(name)
             .save_file()
             .await
@@ -324,18 +319,6 @@ fn open_file(name: String) -> Task<AppMessage> {
     })
 }
 
-fn show_defaulting_dialog(path: PathBuf) -> Task<AppMessage> {
-    let message = format!("Defaulting to {}. Ok?", path.display());
-    Task::future(
-        rfd::AsyncMessageDialog::new()
-            .set_title("Invalid selection")
-            .set_description(&message)
-            .set_level(rfd::MessageLevel::Warning)
-            .show(),
-    )
-    .then(|_| Task::done(AppMessage::Main(MainPageMessage::Ignore)))
-}
-
 fn ensure_t2_suffix(name: String) -> String {
     let base_name = name
         .strip_suffix(".iso")
@@ -355,6 +338,7 @@ fn default_download_dir() -> PathBuf {
         .map(|home| home.join("Downloads"))
         .unwrap_or_else(|| PathBuf::from("Downloads"))
 }
+
 fn get_distro_list() -> Task<AppMessage> {
     Task::future(Distro::get_all()).then(|handle| match handle {
         Ok(distros) => Task::done(AppMessage::Main(MainPageMessage::LoadDistroList(distros))),

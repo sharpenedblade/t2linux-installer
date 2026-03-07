@@ -138,7 +138,7 @@ impl Page for DownloadPage {
     }
 
     fn block_window_close(&self) -> bool {
-        true
+        self.total_parts.is_some() && !self.ct.is_cancelled()
     }
 }
 
