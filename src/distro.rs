@@ -3,8 +3,11 @@ use futures::StreamExt;
 use iced::task::{Straw, sipper};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::path::PathBuf;
-use tokio::io::{AsyncWriteExt, BufWriter};
+use std::sync::Arc;
+use tokio::{
+    fs::File,
+    io::{AsyncWriteExt, BufWriter},
+};
 use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize, Hash)]
@@ -36,7 +39,7 @@ impl Distro {
 
     pub fn download_iso(
         &self,
-        iso_path: PathBuf,
+        file: Arc<File>,
         ct: CancellationToken,
     ) -> impl Straw<(), (usize, f64), anyhow::Error> {
         let s = self.clone();
@@ -46,14 +49,7 @@ impl Distro {
                 return Err(anyhow!("Compression is unimplemented"));
             };
             let client = reqwest::Client::new();
-            let iso_file = tokio::fs::OpenOptions::new()
-                .truncate(true)
-                .create(true)
-                .write(true)
-                .open(&iso_path)
-                .await
-                .with_context(|| format!("Could not open ISO file: {}", &iso_path.display()))?;
-            let mut iso_file_buf = BufWriter::new(iso_file);
+            let mut iso_file_buf = BufWriter::new(file.try_clone().await?);
             for (part, url) in s.iso.iter().enumerate() {
                 let request = client
                     .get(url)
@@ -67,9 +63,10 @@ impl Distro {
                     if ct.is_cancelled() {
                         return Err(anyhow!("Download cancelled"));
                     };
-                    iso_file_buf.write_all(&data).await.with_context(|| {
-                        format!("Failed to write to file: {}", iso_path.display())
-                    })?;
+                    iso_file_buf
+                        .write_all(&data)
+                        .await
+                        .context("Failed to write to iso download location")?;
                     hasher.update(&data);
                     current_len += data.len() as u64;
                     if let Some(total_len) = total_len {

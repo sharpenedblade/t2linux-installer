@@ -1,6 +1,8 @@
-use crate::install::{InstallProgress, InstallSettings};
-use crate::ui::app::{AppMessage, Page};
-use crate::ui::finish_page;
+use crate::{
+    install::{InstallProgress, InstallSettings},
+    ui::app::{AppMessage, Page},
+    ui::finish_page,
+};
 use anyhow::anyhow;
 use futures::StreamExt;
 use iced::Length;
@@ -9,17 +11,19 @@ use iced::widget::{button, column, container, progress_bar, row, text};
 use rfd::{MessageButtons, MessageDialogResult, MessageLevel};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
+use tokio::fs::File;
 use tokio_util::sync::CancellationToken;
 
 use super::finish_page::FinishState;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct DownloadPage {
     settings: InstallSettings,
     progress: f64,
     total_parts: Option<usize>,
     current_parts: Option<usize>,
     ct: CancellationToken,
+    file: Arc<File>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -35,13 +39,14 @@ pub enum DownloadPageMessage {
 }
 
 impl DownloadPage {
-    pub fn new(settings: InstallSettings) -> Self {
+    pub fn new(settings: InstallSettings, file: File) -> Self {
         Self {
             total_parts: None,
             current_parts: None,
             progress: 0.0,
             settings,
             ct: CancellationToken::new(),
+            file: Arc::new(file),
         }
     }
 }
@@ -127,6 +132,7 @@ impl Page for DownloadPage {
         let init = DownloadSubState {
             settings: self.settings.clone(),
             ct: self.ct.clone(),
+            file: self.file.clone(),
         };
         iced::Subscription::run_with(init, DownloadSubState::subscription_task)
     }
@@ -136,10 +142,11 @@ impl Page for DownloadPage {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct DownloadSubState {
     settings: InstallSettings,
     ct: CancellationToken,
+    file: Arc<File>,
 }
 
 impl Hash for DownloadSubState {
@@ -149,19 +156,21 @@ impl Hash for DownloadSubState {
 }
 impl DownloadSubState {
     fn subscription_task(&self) -> impl futures::Stream<Item = AppMessage> + use<> {
-        self.settings.install(self.ct.clone()).map(|msg| match msg {
-            InstallProgress::IsoDownloadStart(parts) => {
-                AppMessage::Download(DownloadPageMessage::StartedIsoDownload(parts))
-            }
-            InstallProgress::IsoDownloadProgress(part, progress) => {
-                AppMessage::Download(DownloadPageMessage::DownloadProgress(part, progress))
-            }
-            InstallProgress::Finished => AppMessage::Download(DownloadPageMessage::Finished),
-            InstallProgress::Failed(err) => {
-                println!("{err:#}");
-                AppMessage::Download(DownloadPageMessage::Failed(format!("{err:#}")))
-            }
-        })
+        self.settings
+            .install(self.file.clone(), self.ct.clone())
+            .map(|msg| match msg {
+                InstallProgress::IsoDownloadStart(parts) => {
+                    AppMessage::Download(DownloadPageMessage::StartedIsoDownload(parts))
+                }
+                InstallProgress::IsoDownloadProgress(part, progress) => {
+                    AppMessage::Download(DownloadPageMessage::DownloadProgress(part, progress))
+                }
+                InstallProgress::Finished => AppMessage::Download(DownloadPageMessage::Finished),
+                InstallProgress::Failed(err) => {
+                    println!("{err:#}");
+                    AppMessage::Download(DownloadPageMessage::Failed(format!("{err:#}")))
+                }
+            })
     }
 }
 
