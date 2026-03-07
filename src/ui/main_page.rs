@@ -249,9 +249,13 @@ impl MainPage {
         if let Some(UIDownloadTarget::File(path)) = &self.download_target {
             col = col.push(text(format!("{}", path.display())));
         }
-        col = col.push(button("Save as").on_press(AppMessage::Main(
-            MainPageMessage::TriggerFilePicker,
-        )));
+        col = col.push(
+            row![
+                button("Save as").on_press(AppMessage::Main(MainPageMessage::TriggerFilePicker)),
+                text("(optional)")
+            ]
+            .spacing(8),
+        );
         container(col.spacing(16)).width(Length::Fill)
     }
     fn block_dev_view(&self) -> iced::widget::Container<'_, AppMessage> {
