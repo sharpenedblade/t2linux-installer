@@ -25,6 +25,7 @@ pub enum MainPageMessage {
     Err(Arc<anyhow::Error>),
     PickDistro(usize),
     OpenTargetPicker,
+    OpenDistroPicker,
     TriggerFilePicker,
     PickIsoFile(Arc<File>, PathBuf),
     SetBlockDeviceFile(Arc<File>),
@@ -145,6 +146,9 @@ impl Page for MainPage {
                         task = get_block_dev_fd(block_device);
                     }
                 }
+                MainPageMessage::OpenDistroPicker => {
+                    self.state = MainPageState::Distro;
+                }
             }
         }
         if self.distro_list.is_none() {
@@ -157,12 +161,6 @@ impl Page for MainPage {
             MainPageState::Distro => self.distro_picker_view(),
             MainPageState::Target => self.target_picker_view(),
         };
-        // center(
-        // container(e)
-        // .align_x(iced::alignment::Horizontal::Center)
-        // .align_y(iced::alignment::Vertical::Center),
-        // )
-        // .into()
         e.into()
     }
 
@@ -211,6 +209,7 @@ impl MainPage {
             center_x(column![self.file_path_view(), self.block_dev_view()].spacing(32)),
             space::vertical(),
             row![
+                button("Back").on_press(AppMessage::Main(MainPageMessage::OpenDistroPicker)),
                 space::horizontal(),
                 button("Begin Download").on_press_maybe(if self.download_target.is_some() {
                     Some(AppMessage::Main(MainPageMessage::StartInstall))
