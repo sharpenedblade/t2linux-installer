@@ -51,13 +51,13 @@ pub async fn get_fd_for_disk(b: BlockDevice) -> Result<tokio::fs::File> {
 #[cfg(target_os = "macos")]
 pub async fn get_fd_for_disk(b: BlockDevice) -> Result<tokio::fs::File> {
     use std::path::PathBuf;
-    let file: Result<std::fs::File> = tokio::task::spawn_blocking(|| -> Result<std::fs::File> {
+    let file: Result<std::fs::File> = {
         let path = PathBuf::from("/dev").join(b.os_identifier);
-        let opts = authopen::OpenOption::ReadWrite;
-        let file = authopen::open_macos(path, opts)?;
+        // let opts = authopen::OpenOption::ReadWrite;
+        let file = authopen::open_auth(&path).await?;
+        // let file = authopen::open_macos(path, opts)?;
         Ok(file)
-    })
-    .await?;
+    };
     let file = tokio::fs::File::from_std(file?);
     Ok(file)
 }

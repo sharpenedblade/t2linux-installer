@@ -57,7 +57,8 @@ fn diskutil_cmd(args: Vec<&str>) -> Result<Vec<u8>> {
 }
 
 pub fn get_external_disks() -> Result<Vec<BlockDevice>> {
-    let diskutil_output = diskutil_cmd(vec!["list", "-plist", "external", "physical"])?;
+    // let diskutil_output = diskutil_cmd(vec!["list", "-plist", "external", "physical"])?;
+    let diskutil_output = diskutil_cmd(vec!["list", "-plist"])?;
     let all_disks: DiskList = plist::from_bytes(diskutil_output.as_ref()).unwrap();
     let mut disks: Vec<BlockDevice> = vec![];
     for disk in all_disks.all_disks_and_partitions {
