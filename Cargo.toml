@@ -27,6 +27,10 @@ zip = "2.1.3"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 plist = "1.6.1"
+libc = "0.2.182"
+passfd = "0.1.6"
+security-framework = "3.7.0"
+security-framework-sys = "2.17.0"
 [target.'cfg(target_os = "linux")'.dependencies]
 udisks2 = "0.3.1"
 
