@@ -1,19 +1,18 @@
+use crate::{
+    disk::{self, BlockDevice},
+    distro::Distro,
+    install::{DownloadTarget, InstallSettings},
+    ui::{
+        app::{AppMessage, Page},
+        download_page,
+    },
+};
 use anyhow::{Result, anyhow};
-use iced::Element;
-use iced::widget::{center, center_x, row, space};
-use std::{path::PathBuf, sync::Arc};
-
-use crate::disk::{self, BlockDevice};
-use crate::install::DownloadTarget;
-use crate::ui::{
-    app::{AppMessage, Page},
-    download_page,
-};
-use crate::{distro::Distro, install::InstallSettings};
 use iced::{
-    Length, Task,
-    widget::{button, column, container, radio, scrollable, text},
+    Element, Length, Task,
+    widget::{button, center_x, column, radio, row, scrollable, space, text},
 };
+use std::{path::PathBuf, sync::Arc};
 use tokio::fs::{File, OpenOptions};
 
 use super::finish_page::FinishPage;
