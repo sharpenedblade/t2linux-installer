@@ -5,9 +5,9 @@ use crate::{
 };
 use anyhow::anyhow;
 use futures::StreamExt;
-use iced::Length;
 use iced::alignment::Vertical;
 use iced::widget::{button, column, container, progress_bar, row, text};
+use iced::{Length, Task};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use tokio::fs::File;
@@ -33,6 +33,7 @@ pub enum DownloadPageMessage {
     DownloadProgress(usize, f64),
     Finished,
     Failed(String),
+    CloseRequested,
     Cancel,
 }
 
@@ -51,7 +52,7 @@ impl DownloadPage {
 
 impl Page for DownloadPage {
     fn update(&mut self, message: AppMessage) -> (Option<Box<dyn Page>>, iced::Task<AppMessage>) {
-        let command: iced::Task<AppMessage> = iced::Task::none();
+        let mut command: iced::Task<AppMessage> = iced::Task::none();
         let mut page: Option<Box<dyn Page>> = None;
         if let AppMessage::Download(msg) = message {
             match msg {
@@ -73,6 +74,9 @@ impl Page for DownloadPage {
                 DownloadPageMessage::DownloadProgress(part, progress) => {
                     self.current_parts = Some(part);
                     self.progress = progress
+                }
+                DownloadPageMessage::CloseRequested => {
+                    command = ask_cancel_request();
                 }
             }
         }
@@ -98,8 +102,9 @@ impl Page for DownloadPage {
             .spacing(16)
             .align_y(Vertical::Center),
         );
-        col =
-            col.push(button("Cancel").on_press(AppMessage::Download(DownloadPageMessage::Cancel)));
+        col = col.push(
+            button("Cancel").on_press(AppMessage::Download(DownloadPageMessage::CloseRequested)),
+        );
         container(col)
             .align_x(iced::alignment::Horizontal::Center)
             .align_y(iced::alignment::Vertical::Center)
@@ -114,8 +119,35 @@ impl Page for DownloadPage {
             ct: self.ct.clone(),
             file: self.file.clone(),
         };
-        iced::Subscription::run_with(init, DownloadSubState::subscription_task)
+        let sub = iced::Subscription::run_with(init, DownloadSubState::subscription_task);
+        iced::Subscription::batch([
+            sub,
+            iced::window::close_requests()
+                .map(|_| AppMessage::Download(DownloadPageMessage::CloseRequested)),
+        ])
     }
+}
+
+fn ask_cancel_request() -> Task<AppMessage> {
+    iced::window::oldest()
+        .and_then(|window_id| {
+            iced::window::run(window_id, |w| {
+                rfd::AsyncMessageDialog::new()
+                    .set_buttons(rfd::MessageButtons::OkCancel)
+                    .set_description("The download will have to restart")
+                    .set_title("Cancel Download?")
+                    .set_parent(&w)
+                    .show()
+            })
+        })
+        .then(Task::future)
+        .then(|res| match res {
+            rfd::MessageDialogResult::Ok => {
+                Task::done(AppMessage::Download(DownloadPageMessage::Cancel))
+            }
+            rfd::MessageDialogResult::Cancel => Task::none(),
+            _ => panic!("This dialog choice was not an option"),
+        })
 }
 
 #[derive(Debug)]
