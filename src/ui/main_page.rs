@@ -155,7 +155,7 @@ impl Page for MainPage {
         }
         (page, task)
     }
-    fn view(&self) -> iced::Element<AppMessage> {
+    fn view(&self) -> iced::Element<'_, AppMessage> {
         let e = match self.state {
             MainPageState::Distro => self.distro_picker_view(),
             MainPageState::Target => self.target_picker_view(),

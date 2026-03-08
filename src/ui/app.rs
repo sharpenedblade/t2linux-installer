@@ -13,7 +13,7 @@ pub struct App {
 
 pub trait Page {
     fn update(&mut self, message: AppMessage) -> (Option<Box<dyn Page>>, iced::Task<AppMessage>);
-    fn view(&self) -> iced::Element<AppMessage>;
+    fn view(&self) -> iced::Element<'_, AppMessage>;
     fn subscription(&self) -> iced::Subscription<AppMessage>;
 }
 
@@ -39,7 +39,7 @@ impl App {
         command
     }
 
-    pub fn view(&self) -> iced::Element<AppMessage> {
+    pub fn view(&self) -> iced::Element<'_, AppMessage> {
         self.page.view()
     }
 

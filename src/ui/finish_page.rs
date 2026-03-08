@@ -48,7 +48,7 @@ impl Page for FinishPage {
         }
         (page, command)
     }
-    fn view(&self) -> iced::Element<AppMessage> {
+    fn view(&self) -> iced::Element<'_, AppMessage> {
         let mut col = column![
             text(match self.state {
                 FinishState::Clean => "Finished Download",

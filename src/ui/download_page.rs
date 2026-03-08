@@ -78,7 +78,7 @@ impl Page for DownloadPage {
         }
         (page, command)
     }
-    fn view(&self) -> iced::Element<AppMessage> {
+    fn view(&self) -> iced::Element<'_, AppMessage> {
         let mut row1 = row![text("Downloading ISO").size(24)]
             .spacing(16)
             .align_y(Vertical::Center);
