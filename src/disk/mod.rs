@@ -1,8 +1,8 @@
 use anyhow::Result;
-use std::{collections::HashMap, os::fd::OwnedFd};
-use udisks2::zbus::zvariant;
 
+#[cfg(target_os = "macos")]
 pub mod diskutil;
+#[cfg(target_os = "linux")]
 mod lsblk;
 
 #[derive(Debug, Clone, Hash)]
@@ -26,7 +26,10 @@ pub async fn get_external_disks() -> Result<Vec<BlockDevice>> {
         .unwrap()
 }
 
+#[cfg(target_os = "linux")]
 pub async fn get_fd_for_disk(b: BlockDevice) -> Result<tokio::fs::File> {
+    use std::{collections::HashMap, os::fd::OwnedFd};
+    use udisks2::zbus::zvariant;
     let client = udisks2::Client::new().await?;
     let object = client.object(format!(
         "/org/freedesktop/UDisks2/block_devices/{}",
