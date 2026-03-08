@@ -1,6 +1,8 @@
 use anyhow::Result;
 
 #[cfg(target_os = "macos")]
+pub mod authopen;
+#[cfg(target_os = "macos")]
 pub mod diskutil;
 #[cfg(target_os = "linux")]
 mod lsblk;
@@ -44,4 +46,18 @@ pub async fn get_fd_for_disk(b: BlockDevice) -> Result<tokio::fs::File> {
         .await?;
     let fd: OwnedFd = fd.into();
     Ok(tokio::fs::File::from(std::fs::File::from(fd)))
+}
+
+#[cfg(target_os = "macos")]
+pub async fn get_fd_for_disk(b: BlockDevice) -> Result<tokio::fs::File> {
+    use std::path::PathBuf;
+    let file: Result<std::fs::File> = tokio::task::spawn_blocking(|| -> Result<std::fs::File> {
+        let path = PathBuf::from("/dev").join(b.os_identifier);
+        let opts = authopen::OpenOption::ReadWrite;
+        let file = authopen::open_macos(path, opts)?;
+        Ok(file)
+    })
+    .await?;
+    let file = tokio::fs::File::from_std(file?);
+    Ok(file)
 }

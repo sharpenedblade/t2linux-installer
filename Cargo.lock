@@ -2844,6 +2844,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "passfd"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b332c50e4d07c0011fff51ea305374408319908908bc1dbed7a0ffaaf63a8151"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "paste"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3770,9 +3779,13 @@ dependencies = [
  "hex",
  "humansize",
  "iced",
+ "libc",
+ "passfd",
  "plist",
  "reqwest",
  "rfd",
+ "security-framework",
+ "security-framework-sys",
  "serde",
  "serde_json",
  "sha2",
