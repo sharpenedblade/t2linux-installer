@@ -210,7 +210,7 @@ impl MainPage {
             row![
                 button("Back").on_press(AppMessage::Main(MainPageMessage::OpenDistroPicker)),
                 space::horizontal(),
-                button("Begin Download").on_press_maybe(if self.download_target.is_some() {
+                button("Begin Download").on_press_maybe(if self.download_file.is_some() {
                     Some(AppMessage::Main(MainPageMessage::StartInstall))
                 } else {
                     None
