@@ -55,7 +55,7 @@ pub async fn get_fd_for_disk(b: BlockDevice) -> Result<tokio::fs::File> {
     let _b = b.clone();
     let file: Result<std::fs::File> = tokio::task::spawn_blocking(|| -> Result<std::fs::File> {
         let b = _b;
-        let path = PathBuf::from("/dev").join(b.os_identifier);
+        let path = PathBuf::from("/dev").join(format!("r{}", b.os_identifier));
         let opts = authopen::OpenOption::ReadWrite;
         let file = authopen::open_macos(path, opts)?;
         Ok(file)
