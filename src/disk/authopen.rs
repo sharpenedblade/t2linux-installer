@@ -1,22 +1,24 @@
 /* https://gist.github.com/mikroskeem/2a7e7c84f17b5fc49ca3a123dd3cb31a */
+use anyhow::anyhow;
 use std::{
     fs::File,
-    io::{Error, ErrorKind, Write},
+    io::Write,
     os::{
-        fd::{AsRawFd, FromRawFd, OwnedFd},
+        fd::{FromRawFd, OwnedFd},
         unix::net::UnixStream,
     },
     path::Path,
     process::Command,
 };
 
+use anyhow::Context;
 use libc::pipe;
 use passfd::FdPassingExt;
 use security_framework_sys::authorization::{
     AuthorizationCreate, AuthorizationExternalForm, AuthorizationFree, AuthorizationItem,
     AuthorizationMakeExternalForm, AuthorizationRef, AuthorizationRights,
-    kAuthorizationExternalFormLength, kAuthorizationFlagExtendRights,
-    kAuthorizationFlagInteractionAllowed, kAuthorizationFlagPreAuthorize,
+    kAuthorizationFlagExtendRights, kAuthorizationFlagInteractionAllowed,
+    kAuthorizationFlagPreAuthorize,
 };
 
 #[derive(Clone, Copy)]
@@ -27,7 +29,7 @@ pub enum OpenOption {
     ReadWriteCreate(u32),
 }
 
-pub fn open_macos<P: AsRef<Path>>(path: P, openoption: OpenOption) -> Result<File, std::io::Error> {
+pub fn open_macos<P: AsRef<Path>>(path: P, openoption: OpenOption) -> anyhow::Result<File> {
     let mut flags: Vec<String> = vec![];
     match openoption {
         OpenOption::Read => {}
@@ -46,39 +48,52 @@ pub fn open_macos<P: AsRef<Path>>(path: P, openoption: OpenOption) -> Result<Fil
         }
     }
 
-    let (stdin, send_fd) = unsafe {
+    let (stdin_read, stdin_write) = unsafe {
         let mut fds = [0_i32; 2];
         if pipe(fds.as_mut_ptr()) < 0 {
-            return Err(std::io::Error::last_os_error());
+            return Err(anyhow!(std::io::Error::last_os_error()));
         }
 
         (OwnedFd::from_raw_fd(fds[0]), OwnedFd::from_raw_fd(fds[1]))
     };
-    let (stdout, recv_fd) = UnixStream::pair()?;
+    let mut stdin_write = File::from(stdin_write);
+    let (stdout, recv_fd) = UnixStream::pair().context("Failed to create unix stream pair")?;
 
     // Spawn authopen
     let mut child = Command::new("/usr/libexec/authopen")
-        .stdin(stdin)
+        .stdin(stdin_read)
         .stdout(OwnedFd::from(stdout))
         .arg("-extauth")
         .arg("-stdoutpipe")
         .args(&flags)
         .arg(path.as_ref())
-        .spawn()?;
+        .spawn()
+        .context("Failed to spawn authopen")?;
 
-    let (auth_ref, file) = unsafe {
-        (
-            create_authorization(send_fd, path.as_ref(), openoption)?,
-            File::from_raw_fd(recv_fd.recv_fd()?),
+    let auth_ref = unsafe { create_authorization(path.as_ref(), openoption) }
+        .context("Failed to get authorization")?;
+
+    stdin_write
+        .write_all(
+            &auth_ref
+                .to_external_form()
+                .context("Failed to convert authorization to external form")?
+                .bytes
+                .map(|i| i as u8),
+        )
+        .context("Failed to write authorization to authopen's stdin")?;
+    let file = unsafe {
+        File::from_raw_fd(
+            recv_fd
+                .recv_fd()
+                .context("Failed to receive fd from socket")?,
         )
     };
 
-    let result = child.wait()?;
+    let result = child.wait().context("Failed to wait for anyhow to exit")?;
     if !result.success() {
-        return Err(Error::new(ErrorKind::Other, "authopen failed"));
+        return Err(anyhow!("authopen failed with a non-zero exit code"));
     }
-
-    drop(auth_ref);
 
     Ok(file)
 }
@@ -95,15 +110,12 @@ impl AuthRef {
         &mut self.0
     }
 
-    pub fn to_external_form(&self) -> Result<AuthorizationExternalForm, Error> {
+    pub fn to_external_form(&self) -> anyhow::Result<AuthorizationExternalForm> {
         let external_form: AuthorizationExternalForm = unsafe {
             let mut data = std::mem::zeroed();
             let ret = AuthorizationMakeExternalForm(self.0, &mut data);
             if ret < 0 {
-                return Err(Error::new(
-                    ErrorKind::Other,
-                    format!("AuthorizationMakeExternalForm failed: {}", ret),
-                ));
+                return Err(anyhow!("AuthorizationMakeExternalForm failed: {}", ret));
             }
             data
         };
@@ -120,12 +132,9 @@ impl Drop for AuthRef {
 }
 
 unsafe fn create_authorization<P: AsRef<Path>>(
-    pipe: OwnedFd,
     path: P,
     openoption: OpenOption,
-) -> Result<AuthRef, Error> {
-    let mut pipe = unsafe { File::from_raw_fd(pipe.as_raw_fd()) };
-
+) -> anyhow::Result<AuthRef> {
     let mode = match openoption {
         OpenOption::Read => "readonly",
         OpenOption::ReadWriteAppend | OpenOption::ReadWrite => "readwrite",
@@ -148,18 +157,10 @@ unsafe fn create_authorization<P: AsRef<Path>>(
         | kAuthorizationFlagPreAuthorize;
 
     let mut auth_ref = AuthRef::new();
-    let ret = AuthorizationCreate(&rights, std::ptr::null(), flags, auth_ref.as_mut_ptr());
+    let ret =
+        unsafe { AuthorizationCreate(&rights, std::ptr::null(), flags, auth_ref.as_mut_ptr()) };
     if ret < 0 {
-        return Err(Error::new(
-            ErrorKind::Other,
-            format!("AuthorizationCreate failed: {}", ret),
-        ));
+        return Err(anyhow!("AuthorizationCreate failed: {}", ret));
     }
-
-    let external_form = auth_ref.to_external_form()?;
-    let bytes: [u8; kAuthorizationExternalFormLength] =
-        unsafe { std::mem::transmute(external_form.bytes) };
-    pipe.write_all(&bytes)?;
-
     Ok(auth_ref)
 }

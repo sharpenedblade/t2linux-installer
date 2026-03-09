@@ -50,14 +50,19 @@ pub async fn get_fd_for_disk(b: BlockDevice) -> Result<tokio::fs::File> {
 
 #[cfg(target_os = "macos")]
 pub async fn get_fd_for_disk(b: BlockDevice) -> Result<tokio::fs::File> {
+    use anyhow::Context;
     use std::path::PathBuf;
+    let _b = b.clone();
     let file: Result<std::fs::File> = tokio::task::spawn_blocking(|| -> Result<std::fs::File> {
+        let b = _b;
         let path = PathBuf::from("/dev").join(b.os_identifier);
         let opts = authopen::OpenOption::ReadWrite;
         let file = authopen::open_macos(path, opts)?;
         Ok(file)
     })
     .await?;
-    let file = tokio::fs::File::from_std(file?);
+    let file = tokio::fs::File::from_std(
+        file.with_context(|| format!("Failed to open {:?} with authopen", b))?,
+    );
     Ok(file)
 }
