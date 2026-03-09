@@ -204,8 +204,12 @@ impl MainPage {
         .padding(16)
     }
     fn target_picker_view(&self) -> iced::widget::Column<'_, AppMessage> {
+        let mut col = column![self.file_path_view()];
+        if std::env::consts::OS == "linux" {
+            col = col.push(self.block_dev_view());
+        }
         column![
-            center_x(column![self.file_path_view(), self.block_dev_view()].spacing(32)),
+            center_x(col),
             space::vertical(),
             row![
                 button("Back").on_press(AppMessage::Main(MainPageMessage::OpenDistroPicker)),
