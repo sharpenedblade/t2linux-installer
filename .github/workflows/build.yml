@@ -43,7 +43,7 @@ jobs:
           path: target/debug/t2linux-installer
 
   release:
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.ref_type == 'tag'
     strategy:
       matrix:
         os:
@@ -80,10 +80,17 @@ jobs:
         if: ${{ matrix.os == 'ubuntu-latest' }}
         run: "cargo bundle --release --format appimage"
 
-      - name: "Release"
-        uses: softprops/action-gh-release@v1
+      - name: "Release linux"
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             target/release/bundle/appimage/*.AppImage
+
+      - name: "Release macos"
+        if: ${{ matrix.os == 'macos-latest' }}
+        uses: softprops/action-gh-release@v3
+        with:
+          files: |
             target/release/bundle/osx/*.app
 
