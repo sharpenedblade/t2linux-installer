@@ -35,8 +35,9 @@ security-framework-sys = "2.17.0"
 udisks2 = "0.3.1"
 
 [package.metadata.bundle]
-name = "t2linuxInstaller"
+name = "t2linux Installer"
 identifier = "org.t2linux.installer"
+icon = ["icon.png"]
 version = "0.1.0"
 short_description = "Installation helper for linux on t2 macs."
 long_description = """
