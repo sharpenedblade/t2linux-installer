@@ -40,7 +40,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: debug-${{ runner.os }}
-          path: target/release/t2linux-installer
+          path: target/debug/t2linux-installer
 
   release:
     if: startsWith(github.ref, 'refs/tags/')
