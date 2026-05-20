@@ -44,6 +44,8 @@ jobs:
 
   release:
     if: github.ref_type == 'tag'
+    permissions:
+      contents: write
     strategy:
       matrix:
         os:
