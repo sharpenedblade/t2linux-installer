@@ -76,7 +76,7 @@ jobs:
 
       - name: "Build macos Release Bundle"
         if: ${{ matrix.os == 'macos-latest' }}
-        run: "cargo bundle --release --format osx"
+        run: "cargo bundle --release --format osx && zip -r 'target/release/bundle/osx/t2linux Installer.app/' 'target/release/bundle/osx/t2linux Installer.app.zip'"
 
       - name: "Build linux Release Bundle"
         if: ${{ matrix.os == 'ubuntu-latest' }}
