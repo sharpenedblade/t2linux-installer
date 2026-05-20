@@ -87,12 +87,12 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           files: |
-            'target/release/bundle/appimage/t2linux Installer.AppImage'
+            target/release/bundle/appimage/t2linux Installer.AppImage
 
       - name: "Release macos"
         if: ${{ matrix.os == 'macos-latest' }}
         uses: softprops/action-gh-release@v3
         with:
           files: |
-            'target/release/bundle/osx/t2linux Installer.app'
+            target/release/bundle/osx/t2linux Installer.app
 
