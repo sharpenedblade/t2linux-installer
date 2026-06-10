@@ -49,7 +49,7 @@ jobs:
     strategy:
       matrix:
         os:
-          - macos-latest
+          - macos-26-intel
           - ubuntu-latest
     runs-on:  ${{ matrix.os }}
     steps:
