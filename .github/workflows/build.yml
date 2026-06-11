@@ -90,7 +90,7 @@ jobs:
             target/release/bundle/appimage/*.AppImage
 
       - name: "Release macos"
-        if: ${{ matrix.os == 'macos-latest' }}
+        if: ${{ matrix.os == 'macos-26-intel' }}
         uses: softprops/action-gh-release@v3
         with:
           files: |
